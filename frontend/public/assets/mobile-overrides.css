@@ -1,0 +1,226 @@
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Keep the first landing page visually the same, but tighten spacing and tap targets on phones. */
+@media (max-width: 767px) {
+  .landing-chooser {
+    touch-action: manipulation;
+  }
+
+  .landing-chooser nav > div {
+    width: calc(100% - 16px) !important;
+    top: 12px !important;
+    padding: 12px 14px !important;
+    border-radius: 22px !important;
+  }
+
+  .landing-chooser section {
+    padding-top: 112px !important;
+    padding-bottom: 28px !important;
+  }
+
+  .landing-chooser h1 {
+    font-size: clamp(36px, 11vw, 50px) !important;
+    line-height: 1.02 !important;
+    margin-bottom: 14px !important;
+  }
+
+  .landing-chooser section p[class*="max-w-[580px]"] {
+    max-width: 100% !important;
+    font-size: 15px !important;
+    line-height: 1.62 !important;
+  }
+
+  .landing-chooser section + div {
+    width: calc(100% - 16px) !important;
+    gap: 16px !important;
+    margin-bottom: 40px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .landing-chooser a[href="/school"] > div:nth-child(2),
+  .landing-chooser a[href="/uni"] > div:nth-child(2) {
+    padding: 20px !important;
+    border-radius: 24px !important;
+  }
+
+  .landing-chooser a[href="/school"] h2,
+  .landing-chooser a[href="/uni"] h2 {
+    font-size: 28px !important;
+    line-height: 1.08 !important;
+  }
+
+  .landing-chooser a[href="/school"] p,
+  .landing-chooser a[href="/uni"] p {
+    max-width: 100% !important;
+    margin-bottom: 24px !important;
+  }
+
+  .landing-chooser [class*="bg-school-cta"],
+  .landing-chooser [class*="bg-uni-cta"] {
+    width: 100% !important;
+    justify-content: space-between !important;
+    padding: 14px 18px !important;
+  }
+
+  .landing-chooser a[href="/school"] > div:nth-child(2) > svg,
+  .landing-chooser a[href="/uni"] > div:nth-child(2) > svg {
+    display: none !important;
+  }
+}
+
+/* Bundle-safe mobile overrides for the original school and university pages. */
+@media (max-width: 767px) {
+  .school-landing,
+  .uni-landing {
+    touch-action: manipulation;
+  }
+
+  .school-landing *,
+  .uni-landing * {
+    max-width: 100%;
+  }
+
+  .school-landing [class*="w-[calc(100%-32px)]"],
+  .school-landing [class*="w-[calc(100%-2rem)]"],
+  .uni-landing [class*="w-[calc(100%-32px)]"],
+  .uni-landing [class*="w-[calc(100%-2rem)]"] {
+    width: calc(100% - 20px) !important;
+  }
+
+  .school-landing [class*="max-w-[1200px]"],
+  .school-landing [class*="max-w-[1240px]"],
+  .school-landing [class*="max-w-[1280px]"],
+  .uni-landing [class*="max-w-[1200px]"],
+  .uni-landing [class*="max-w-[1240px]"],
+  .uni-landing [class*="max-w-[1280px]"] {
+    max-width: 100% !important;
+  }
+
+  .school-landing [class*="w-[800px]"],
+  .school-landing [class*="h-[800px]"],
+  .uni-landing [class*="w-[800px]"],
+  .uni-landing [class*="h-[800px]"] {
+    width: min(136vw, 560px) !important;
+    height: min(136vw, 560px) !important;
+  }
+
+  .school-landing [class*="w-[700px]"],
+  .school-landing [class*="h-[700px]"],
+  .school-landing [class*="w-[650px]"],
+  .school-landing [class*="h-[650px]"],
+  .school-landing [class*="w-[600px]"],
+  .school-landing [class*="h-[600px]"],
+  .school-landing [class*="w-[550px]"],
+  .school-landing [class*="h-[550px]"],
+  .uni-landing [class*="w-[700px]"],
+  .uni-landing [class*="h-[700px]"],
+  .uni-landing [class*="w-[650px]"],
+  .uni-landing [class*="h-[650px]"],
+  .uni-landing [class*="w-[600px]"],
+  .uni-landing [class*="h-[600px]"],
+  .uni-landing [class*="w-[550px]"],
+  .uni-landing [class*="h-[550px]"] {
+    width: min(124vw, 500px) !important;
+    height: min(124vw, 500px) !important;
+  }
+
+  .school-landing [class*="rounded-[2.5rem]"],
+  .school-landing [class*="rounded-[36px]"],
+  .uni-landing [class*="rounded-[2.5rem]"],
+  .uni-landing [class*="rounded-[36px]"] {
+    border-radius: 24px !important;
+  }
+
+  .school-landing [style*="clamp(36px, 6vw, 64px)"],
+  .uni-landing [class*="text-[48px]"][class*="sm:text-[68px]"],
+  .uni-landing [class*="text-[46px]"][class*="sm:text-[58px]"] {
+    font-size: clamp(34px, 10vw, 48px) !important;
+    line-height: 1.02 !important;
+  }
+
+  .school-landing [class*="text-[18px]"],
+  .school-landing [class*="text-[17px]"],
+  .uni-landing [class*="text-[18px]"],
+  .uni-landing [class*="text-[17px]"] {
+    line-height: 1.58 !important;
+  }
+
+  .school-landing [class*="py-24"],
+  .uni-landing [class*="py-24"] {
+    padding-top: 72px !important;
+    padding-bottom: 72px !important;
+  }
+
+  .school-landing [class*="py-12"],
+  .uni-landing [class*="py-12"] {
+    padding-top: 56px !important;
+    padding-bottom: 56px !important;
+  }
+
+  .school-landing [class*="px-6"],
+  .uni-landing [class*="px-6"] {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+
+  .school-landing [class*="p-8"],
+  .uni-landing [class*="p-8"] {
+    padding: 20px !important;
+  }
+
+  .school-landing [class*="gap-12"],
+  .uni-landing [class*="gap-12"] {
+    gap: 28px !important;
+  }
+
+  .school-landing [class*="blur-3xl"],
+  .school-landing [class*="blur-[65px]"],
+  .school-landing [class*="blur-[90px]"],
+  .uni-landing [class*="blur-3xl"],
+  .uni-landing [class*="blur-[65px]"],
+  .uni-landing [class*="blur-[90px]"] {
+    filter: none !important;
+    opacity: 0.28 !important;
+  }
+
+  .school-landing [class*="backdrop-blur"],
+  .school-landing [style*="backdrop-filter"],
+  .uni-landing [class*="backdrop-blur"],
+  .uni-landing [style*="backdrop-filter"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .school-landing [class*="animate-"],
+  .school-landing [style*="animation:"],
+  .uni-landing [class*="animate-"],
+  .uni-landing [style*="animation:"] {
+    animation: none !important;
+  }
+
+  .school-landing [class*="transition-"],
+  .uni-landing [class*="transition-"] {
+    transition-duration: 0.18s !important;
+  }
+
+  .school-landing #cookie-banner,
+  .uni-landing #cookie-banner {
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    bottom: 10px !important;
+    transform: none !important;
+    padding: 16px !important;
+  }
+
+  #boostai-auth-fallback {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    justify-content: flex-end !important;
+  }
+}

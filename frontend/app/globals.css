@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light;
+  --bg: #eff4ff;
+  --ink: #17181d;
+  --muted: #667085;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sundry), "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(74, 130, 244, 0.14), transparent 28%),
+    radial-gradient(circle at 90% 12%, rgba(125, 91, 255, 0.12), transparent 24%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4ff 55%, #f9fbff 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
