@@ -11,7 +11,7 @@ export default function SchoolHero() {
           Practice questions built like real exams. Your marks, explained. Everything you need to improve, all in one place.
         </p>
         <a
-          href="#"
+          href="/select"
           className="inline-block rounded-full font-medium hover:bg-[#333] transition-all"
           style={{ padding: "14px 32px", backgroundColor: "#1a1a1a", color: "#ffffff", fontSize: "18px", lineHeight: "28px", marginTop: "28px" }}
         >

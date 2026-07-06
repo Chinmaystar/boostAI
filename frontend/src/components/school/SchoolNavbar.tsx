@@ -62,13 +62,13 @@ export default function SchoolNavbar() {
         {/* Auth Buttons */}
         <div className="flex items-center gap-6 shrink-0">
           <a
-            href="#"
+            href="/select"
             className="text-base text-[#171717] hover:text-black transition-all whitespace-nowrap"
           >
             Login
           </a>
           <a
-            href="#"
+            href="/select"
             className="whitespace-nowrap rounded-full border border-[#292524] text-[18px] leading-[28px] text-[#292524] hover:bg-gray-50 transition-all"
             style={{ padding: "12px 24px" }}
           >

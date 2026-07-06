@@ -15,14 +15,14 @@ export default function UnivHero() {
         
         <div className="flex items-center gap-4">
           <a 
-            href="/signup" 
+            href="/select" 
             className="px-8 py-3 bg-blue-700 rounded-full font-medium text-[16px] hover:bg-black transition-colors shadow-md"
             style={{ color: "white" }}
           >
             Sign up for Free
           </a>
           <a 
-            href="/login" 
+            href="/select" 
             className="px-8 py-3 bg-white border border-gray-300 rounded-full font-medium text-[16px] hover:bg-gray-50 transition-colors shadow-sm"
             style={{ color: "black" }}
           >
