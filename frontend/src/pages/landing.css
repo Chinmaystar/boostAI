@@ -1,0 +1,54 @@
+/* ===== Navbar ===== */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-3xl);
+  position: relative;
+  z-index: 100;
+  background: transparent;
+}
+
+.navbar__logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: opacity var(--transition-fast);
+}
+
+.navbar__logo:hover {
+  opacity: 0.7;
+}
+
+.navbar__logo-icon {
+  flex-shrink: 0;
+}
+
+.navbar__brand {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--color-text);
+}
+
+/* ===== Hero Section ===== */
+.hero {
+  padding: 0 var(--space-3xl) var(--space-xl);
+}
+
+.hero__title {
+  font-size: 80px;
+  font-weight: 500;
+  line-height: 80px;
+  letter-spacing: -1.6px;
+  color: #000000;
+}
+
+.hero__subtitle {
+  font-size: 1.15rem;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Removed category card styles */
