@@ -31,14 +31,14 @@ export class OllamaVisionProvider implements VisionProvider {
       messages: [
         {
           role: "system",
-          content: "You are a text extraction engine. Output only the raw text visible in images. Never include reasoning, analysis, descriptions, or any text that was not in the image.",
+          content: "You are a Markdown transcription engine. Output Markdown only. Never include commentary, reasoning, or analysis.",
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Extract all visible text from this document image. Output only the exact words and characters that appear in the image, nothing else. Preserve line breaks.",
+              text: "Transcribe this page exactly. Preserve mathematical notation. Output Markdown only.",
             },
             {
               type: "image_url",

@@ -8,7 +8,7 @@ import { config } from "../config.js";
 
 export interface ProcessResult {
   text: string;
-  method: "pdf-parse" | "ollama" | "gemini";
+  method: "pdf-parse" | "ollama" | "gemini" | "deepseek-ocr";
   pageCount: number;
   pages: PageResult[];
 }
@@ -23,14 +23,14 @@ export async function processPDF(
   onPage?: (page: PageResult) => Promise<void>
 ): Promise<ProcessResult> {
   const buffer = fs.readFileSync(filePath);
-  const providerLabel = config.VISION_PROVIDER as "ollama" | "gemini";
+  const providerLabel = config.VISION_PROVIDER;
 
   const pdfjsResult = await tryPDFjs(buffer);
 
   if (!pdfjsResult) {
     console.log("pdfjs-dist failed entirely, falling back to vision provider for all pages...");
     const fullVision = await extractWithVision(buffer, providerLabel, null, onPage);
-    return { ...fullVision, method: providerLabel };
+    return { ...fullVision, method: providerLabel as ProcessResult["method"] };
   }
 
   const pagesToVision: number[] = [];
@@ -83,7 +83,7 @@ export async function processPDF(
 
   return {
     text: mergedText,
-    method: pagesToVision.length === pdfjsResult.pageCount ? providerLabel : "pdf-parse",
+    method: pagesToVision.length === pdfjsResult.pageCount ? (providerLabel as ProcessResult["method"]) : "pdf-parse",
     pageCount: pdfjsResult.pageCount,
     pages: finalPages,
   };
@@ -165,7 +165,7 @@ async function extractPagesWithVision(
 
 async function extractWithVision(
   buffer: Buffer,
-  providerLabel: "ollama" | "gemini",
+  providerLabel: string,
   _pageNumbers: number[] | null,
   onPage?: (page: PageResult) => Promise<void>
 ): Promise<{ text: string; pageCount: number; pages: PageResult[] }> {
