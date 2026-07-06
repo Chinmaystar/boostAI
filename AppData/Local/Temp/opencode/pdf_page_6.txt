@@ -1,0 +1,33 @@
+*P76923A0624*
+DO NOT WRITE IN THIS AREA 	
+	DO NOT WRITE IN THIS AREA		
+	
+	 	
+	DO NOT WRITE IN THIS AREA
+6
+ 
+ 
+4	 Here is a Venn diagram.
+P
+E
+Q
+12
+18
+10
+14
+15
+11
+13
+16
+17
+	
+(a)	 Write down the numbers that are in set  P′
+.............................................................................................................
+(1)
+	
+A number is chosen at random from the universal set, E
+	
+(b)	 Find the probability that this number is in the set  P ∪ Q
+.......................................................
+(2)
+(Total for Question 4 is 3 marks)

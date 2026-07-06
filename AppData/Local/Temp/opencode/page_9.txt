@@ -1,0 +1,26 @@
+*P76923A0924*
+Turn over     
+9
+ 
+ 
+DO NOT WRITE IN THIS AREA 	
+	DO NOT WRITE IN THIS AREA		
+	
+	 	
+	DO NOT WRITE IN THIS AREA
+7	 Kasim has some small jars, some medium jars and some large jars.
+	
+He has a total of 400 jars.
+	
+3
+8 of the 400 jars are empty.
+	
+For the empty jars,
+	
+	 number of small jars : number of medium jars = 3 : 4
+ 	
+	 number of medium jars : number of large jars = 1 : 2
+	
+Work out the percentage of Kasim’s jars that are empty small jars.
+.......................................................%
+(Total for Question 7 is 5 marks)

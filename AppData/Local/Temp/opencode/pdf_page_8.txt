@@ -1,0 +1,43 @@
+*P76923A0824*
+DO NOT WRITE IN THIS AREA 	
+	DO NOT WRITE IN THIS AREA		
+	
+	 	
+	DO NOT WRITE IN THIS AREA
+8
+ 
+ 
+6 	 Here is a straight line L drawn on a grid.
+–4
+–3
+–2
+–1
+–1
+–2
+–3
+5
+6
+7
+4
+3
+2
+1
+1
+2
+3
+4
+O
+y
+x
+L
+	
+(a)	 Find an equation for L.
+..................................................................................
+(3)
+	
+M is a different straight line with equation  y = 5x
+	
+(b)	 Write down the equation of a straight line parallel to M.
+..................................................................................
+(1)
+(Total for Question 6 is 4 marks)

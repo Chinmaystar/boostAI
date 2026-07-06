@@ -1,0 +1,25 @@
+*P76923A02324*
+23
+ 
+ 
+DO NOT WRITE IN THIS AREA 	
+	DO NOT WRITE IN THIS AREA		
+	
+	 	
+	DO NOT WRITE IN THIS AREA
+23	 C is a circle with centre (0, 0)
+	
+L is a straight line.
+	
+The circle C and the line L intersect at the points P and Q.
+	
+The coordinates of P are (5, 10)
+	
+The x coordinate of Q is –2
+	
+L has a positive gradient and crosses the y-axis at the point (0, k)
+	
+Find the value of k.
+k = .......................................................
+(Total for Question 23 is 5 marks)
+TOTAL FOR PAPER IS 80 MARKS

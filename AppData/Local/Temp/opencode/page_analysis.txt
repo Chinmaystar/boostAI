@@ -1,0 +1,55 @@
+﻿--- Q3-floor-plan ---
+  Text blocks: 15, Drawings: 13
+  Non-layout drawings with content: 1
+    rect=(220,103,376,213) items=18
+    Nearby text: ['3\t The diagram shows a plan of a floor.', '10 m', '6 m', '8 m', '5 m']
+--- Q6-coordinate-grid ---
+  Text blocks: 28, Drawings: 38
+  Non-layout drawings with content: 7
+    rect=(175,114,401,398) items=17
+    rect=(284,93,292,100) items=3
+    rect=(418,308,425,317) items=3
+    Nearby text: ['û4û3û2û1', 'û1', 'û2', 'û3', '5', '6', '7', '4', '3', '2', '1', '1234O', 'y', 'x', 'L', '(a)\t Find an equation for L.']
+    Nearby text: ['6 \t Here is a straight line L drawn on a', '7', 'y']
+--- Q11-triangle ---
+  Text blocks: 31, Drawings: 44
+  Non-layout drawings with content: 5
+    rect=(204,158,232,215) items=3
+    rect=(119,101,459,441) items=23
+    rect=(285,79,293,86) items=3
+    Nearby text: ['A']
+    Nearby text: ['û5û6û4û3û2û1', 'û1', 'û2', 'û3', 'û4', 'û5', 'û6', '5', '6', '4', '3', '2', '1', '123456O', 'y', 'x', 'A', 'Triangle A is translated by the vector  ', '\x1b', '\x1a\x19  to give triangle B.']
+--- Q12-graphs ---
+  Text blocks: 39, Drawings: 56
+  Non-layout drawings with content: 24
+    rect=(204,148,209,154) items=3
+    rect=(152,94,158,100) items=3
+    rect=(120,123,190,193) items=2
+    Nearby text: ['Ox']
+    Nearby text: ['12\t Here are some graphs.', 'yA']
+--- Q13-histogram ---
+  Text blocks: 19, Drawings: 97
+  Non-layout drawings with content: 28
+    rect=(110,552,478,569) items=4
+    rect=(110,524,478,541) items=4
+    rect=(110,495,478,512) items=4
+    Nearby text: ['00', '(3)']
+    Nearby text: ['00']
+--- Q15-sector ---
+  Text blocks: 13, Drawings: 14
+  Non-layout drawings with content: 1
+    rect=(204,88,392,192) items=4
+    Nearby text: ['15\t OAB is a sector of a circle with cen', 'O', 'AB', '6 cm6 cm']
+--- Q19-triangle ---
+  Text blocks: 12, Drawings: 15
+  Non-layout drawings with content: 1
+    rect=(178,86,417,195) items=4
+    Nearby text: ['19A', 'BCD']
+--- Q22-sin-axes ---
+  Text blocks: 13, Drawings: 19
+  Non-layout drawings with content: 4
+    rect=(114,96,119,101) items=3
+    rect=(483,182,488,188) items=3
+    rect=(117,185,462,191) items=5
+    Nearby text: ['22\t (a)\t Sketch the graph of  y = sin\u2009x░', 'y']
+    Nearby text: ['xO', '90180270360']
