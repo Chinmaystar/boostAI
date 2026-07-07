@@ -1,0 +1,139 @@
+{
+  "question_id": "q_616231f71132",
+  "template_id": "LinearEquation",
+  "version": "1.0.0",
+  "source_text": "2*x + 5 = 17",
+  "rendered_question": "Solve: 4 + 1 \u00d7 x = 9",
+  "variable_assignments": {
+    "a": 4,
+    "b": 1,
+    "c": 9
+  },
+  "expected_answer": "5.0",
+  "semantic_template": {
+    "template_id": "LinearEquation",
+    "template_family": "algebra",
+    "subject": "Mathematics",
+    "chapter": "Linear Equations",
+    "topic": "Solving Linear Equations",
+    "concept": "Solve ax + b = c in one variable",
+    "difficulty": "medium",
+    "expected_constraint_types": [
+      "range",
+      "positivity",
+      "integer"
+    ],
+    "generator_type": "algebraic",
+    "solver_type": "linear",
+    "diagram_type": "none",
+    "metadata": {
+      "template_id": "LinearEquation",
+      "display_name": "LinearEquation",
+      "internal_name": "linearequation",
+      "version": "1.0.0",
+      "created_at": "2026-07-07T10:22:00.436235+00:00",
+      "updated_at": "2026-07-07T10:22:00.436247+00:00",
+      "status": "draft",
+      "confidence_score": 1.0,
+      "plugin_source": "builtin",
+      "review_status": "unreviewed"
+    },
+    "template_version": "1.0.0",
+    "tags": [
+      "linear",
+      "equation",
+      "one-variable",
+      "algebra"
+    ],
+    "learning_outcomes": [
+      {
+        "code": "LO-SLE-01",
+        "description": "Solve linear equations of the form ax + b = c"
+      },
+      {
+        "code": "LO-SLE-02",
+        "description": "Identify the variable, coefficient, and constant terms"
+      }
+    ]
+  },
+  "validation_report": {
+    "valid": true,
+    "diagnostics": [],
+    "retry_reason": "none",
+    "execution_trace": [
+      "validation_skipped"
+    ],
+    "stats": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "diagram_count": 0,
+  "svg_count": 0,
+  "metadata": {
+    "pipeline_version": "1.0.0",
+    "pipeline_name": "BoostAI Deterministic Pipeline",
+    "created_at": "2026-07-07T10:22:00.436550+00:00",
+    "generation_time_ms": 0.5517005920410156,
+    "pipeline_steps": [
+      {
+        "name": "parse",
+        "duration_ms": 0.04315376281738281,
+        "success": true
+      },
+      {
+        "name": "canonicalize",
+        "duration_ms": 0.031232833862304688,
+        "success": true
+      },
+      {
+        "name": "template_discovery",
+        "duration_ms": 0.05745887756347656,
+        "success": true
+      },
+      {
+        "name": "variable_extraction",
+        "duration_ms": 0.0934600830078125,
+        "success": true
+      },
+      {
+        "name": "semantic_template",
+        "duration_ms": 0.031232833862304688,
+        "success": true
+      },
+      {
+        "name": "symbolic_conversion",
+        "duration_ms": 0.013589859008789062,
+        "success": true
+      },
+      {
+        "name": "question_generation",
+        "duration_ms": 0.2512931823730469,
+        "success": true
+      },
+      {
+        "name": "diagram_generation",
+        "duration_ms": 0.0059604644775390625,
+        "success": true
+      }
+    ]
+  },
+  "generation_stats": {
+    "attempts": 1,
+    "retries": 0,
+    "total_time_ms": 0.22840499877929688,
+    "success": true
+  },
+  "intermediate_results": {
+    "has_ast": true,
+    "has_canonical": true,
+    "has_signature": true,
+    "has_discovery": true,
+    "has_symbolic": true
+  },
+  "is_valid": true,
+  "has_diagrams": false
+}
