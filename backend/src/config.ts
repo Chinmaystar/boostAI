@@ -12,6 +12,10 @@ const envSchema = z.object({
   DEEPSEEK_OCR_URL: z.string().default("https://deepseek-ocr-v2-demo.vercel.app/api/v1"),
   DEEPSEEK_OCR_API_KEY: z.string().default("whale"),
   VISION_TIMEOUT: z.coerce.number().default(300_000),
+  DATABASE_URL: z.string().default(""),
+  JWT_SECRET: z.string().default("dev-secret-change-in-production"),
+  GOOGLE_CLIENT_ID: z.string().default(""),
+  GOOGLE_CLIENT_SECRET: z.string().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);

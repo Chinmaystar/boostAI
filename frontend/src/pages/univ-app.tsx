@@ -4,11 +4,11 @@ import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import {
   Plus, Upload,
-  ZoomIn, ZoomOut, Undo2, Redo2, Pen, Highlighter,
-  Type, MousePointer2, ArrowLeft, FileText, BookOpen,
-  Layers, Trash2, X, FolderPlus
+  ArrowLeft, FileText, BookOpen,
+  Layers, X, FolderPlus, LogOut, Loader2, Trash2
 } from "lucide-react";
 import logo from "../assets/logo.avif";
+import { useAuth } from "../hooks/useAuth";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -32,8 +32,17 @@ interface TextboxAnnotation {
 }
 type Annotation = PenAnnotation | HighlightAnnotation | TextboxAnnotation;
 
+interface DocInfo {
+  id: number | null;
+  name: string;
+  loading: boolean;
+  pages: { page: number; text: string }[];
+  localFile?: File;
+}
+
 interface AppModule {
   id: string;
+  serverId: number;
   name: string;
 }
 
@@ -43,21 +52,22 @@ const HIGHLIGHT_COLORS = ["#FEF08A", "#86EFAC", "#93C5FD", "#FDA4AF", "#D8B4FE"]
 type Tool = "select" | "pen" | "highlight" | "textbox";
 type RightMode = "tiles" | "quiz" | "flashcards" | "summary";
 
-let modIdCounter = 0;
-const nextModId = () => `mod_${++modIdCounter}`;
-
 export default function UnivAppPage() {
+  const { user, loading, logout } = useAuth();
+
   /* modules */
   const [modules, setModules] = useState<AppModule[]>([]);
-  const [moduleDocs, setModuleDocs] = useState<Record<string, { name: string; file: File }[]>>({});
+  const [moduleDocs, setModuleDocs] = useState<Record<string, DocInfo[]>>({});
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  /* server docs */
+  const [serverDocs, setServerDocs] = useState<DocInfo[]>([]);
+
   /* pdf */
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | string | null>(null);
   const [numPages, setNumPages] = useState(0);
-  const [zoom, setZoom] = useState(1);
   const [pageSizes, setPageSizes] = useState<Record<number, { width: number; height: number }>>({});
 
   /* annotation */
@@ -74,6 +84,9 @@ export default function UnivAppPage() {
   const [textboxPos, setTextboxPos] = useState<{ x: number; y: number } | null>(null);
   const [textboxPage, setTextboxPage] = useState(0);
 
+  /* toast */
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
   /* right panel */
   const [rightMode, setRightMode] = useState<RightMode>("tiles");
 
@@ -86,106 +99,7 @@ export default function UnivAppPage() {
   const penPointsRef = useRef<{ x: number; y: number }[]>([]);
   const highlightDragRef = useRef<{ start: { x: number; y: number }; current: { x: number; y: number } } | null>(null);
 
-  /* toolbar positioning */
-  const [toolbarLeft, setToolbarLeft] = useState(0);
-  const [toolbarWidth, setToolbarWidth] = useState(0);
-
-  useEffect(() => {
-    if (!pageContainerRef.current) return;
-    const rect = pageContainerRef.current.getBoundingClientRect();
-    setToolbarLeft(rect.left);
-    setToolbarWidth(rect.width);
-  }, [pageSizes, zoom, pdfFile]);
-
-  /* derived */
-  const activeModule = modules.find(m => m.id === activeModuleId) || null;
-  const activeModuleDocs = activeModuleId ? moduleDocs[activeModuleId] || [] : [];
-  const activeDocObj = activeModuleDocs.find(d => d.name === activeDocId) || null;
-  const firstSize = Object.values(pageSizes)[0];
-  const basePageWidth = firstSize?.width || 600;
-  const pdfWidth = basePageWidth * zoom;
-  const pageNumbers = Array.from(new Array(numPages), (_, i) => i + 1);
-
-  /* ─── Module CRUD ─── */
-  const createModule = () => {
-    const name = prompt("Module name:")?.trim();
-    if (!name) return;
-    const newMod: AppModule = { id: nextModId(), name };
-    setModules(prev => [...prev, newMod]);
-    setModuleDocs(prev => ({ ...prev, [newMod.id]: [] }));
-    setActiveModuleId(newMod.id);
-  };
-
-  const deleteModule = (id: string) => {
-    if (!confirm("Delete this module and all its documents?")) return;
-    setModules(prev => prev.filter(m => m.id !== id));
-    setModuleDocs(prev => { const { [id]: _, ...rest } = prev; return rest; });
-    if (activeModuleId === id) {
-      setActiveModuleId(null);
-      setActiveDocId(null);
-      setPdfFile(null);
-    }
-  };
-
-  const uploadDocToModule = (modId: string, file: File) => {
-    if (file.type !== "application/pdf") {
-      alert("Only PDF files are allowed");
-      return;
-    }
-    setModuleDocs(prev => ({
-      ...prev,
-      [modId]: [...(prev[modId] || []), { name: file.name, file }],
-    }));
-  };
-
-  const deleteDoc = (modId: string, docName: string) => {
-    setModuleDocs(prev => ({
-      ...prev,
-      [modId]: (prev[modId] || []).filter(d => d.name !== docName),
-    }));
-    if (activeDocId === docName) {
-      setActiveDocId(null);
-      setPdfFile(null);
-    }
-  };
-
-  const openDoc = (modId: string, docName: string) => {
-    const docs = moduleDocs[modId] || [];
-    const doc = docs.find(d => d.name === docName);
-    if (!doc) return;
-    setActiveModuleId(modId);
-    setActiveDocId(docName);
-    setPdfFile(doc.file);
-    setZoom(1);
-    setPageSizes({});
-    setAnnotations([]);
-    setHistory([]);
-    setHistoryIdx(-1);
-    setSidebarOpen(false);
-  };
-
-  /* ─── Annotation ─── */
-  const pushHistory = useCallback((newAnnotations: Annotation[]) => {
-    const cut = history.slice(0, historyIdx + 1);
-    cut.push(newAnnotations);
-    setHistory(cut);
-    setHistoryIdx(cut.length - 1);
-    setAnnotations(newAnnotations);
-  }, [history, historyIdx]);
-
-  const undo = () => {
-    if (historyIdx < 0) return;
-    const prev = history[historyIdx - 1] || [];
-    setAnnotations(prev);
-    setHistoryIdx(historyIdx - 1);
-  };
-  const redo = () => {
-    if (historyIdx >= history.length - 1) return;
-    const next = history[historyIdx + 1];
-    setAnnotations(next);
-    setHistoryIdx(historyIdx + 1);
-  };
-
+  /* ─── Annotation helpers (non-hooks, safe to reference from hooks) ─── */
   const drawAnnotationOnCtx = (ctx: CanvasRenderingContext2D, a: Annotation) => {
     if (a.type === "pen") {
       ctx.beginPath();
@@ -208,6 +122,15 @@ export default function UnivAppPage() {
     }
   };
 
+  /* ─── Annotation hooks ─── */
+  const pushHistory = useCallback((newAnnotations: Annotation[]) => {
+    const cut = history.slice(0, historyIdx + 1);
+    cut.push(newAnnotations);
+    setHistory(cut);
+    setHistoryIdx(cut.length - 1);
+    setAnnotations(newAnnotations);
+  }, [history, historyIdx]);
+
   const redrawCanvas = useCallback(() => {
     const pages = new Set(annotations.map(a => a.page));
     for (const page of pages) {
@@ -226,13 +149,6 @@ export default function UnivAppPage() {
     }
   }, [annotations, pageSizes]);
 
-  useEffect(() => { redrawCanvas(); }, [redrawCanvas]);
-
-  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
   const redrawPage = useCallback((pageNum: number) => {
     const cvs = canvasRefs.current[pageNum];
     if (!cvs) return;
@@ -244,6 +160,284 @@ export default function UnivAppPage() {
       drawAnnotationOnCtx(ctx, a);
     }
   }, [annotations, pageSizes]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = "/login?role=univ";
+    }
+  }, [user, loading]);
+
+  useEffect(() => { redrawCanvas(); }, [redrawCanvas]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    fetch("http://localhost:3001/api/modules", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then((mods: any[]) => {
+        setModules(mods.map(m => ({ id: String(m.id), serverId: m.id, name: m.name })));
+        const docsMap: Record<string, DocInfo[]> = {};
+        for (const mod of mods) {
+          docsMap[String(mod.id)] = (mod.documents || []).map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            loading: false,
+            pages: [],
+          }));
+        }
+        setModuleDocs(docsMap);
+      })
+      .catch(console.error);
+
+    fetch("http://localhost:3001/api/documents/list", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(docs => {
+        setServerDocs(docs.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          loading: false,
+          pages: [],
+        })));
+      })
+      .catch(console.error);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#F3F8FB]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-500 font-medium">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  /* derived */
+  const activeModule = modules.find(m => m.id === activeModuleId) || null;
+  const activeModuleDocs = activeModuleId ? moduleDocs[activeModuleId] || [] : [];
+  const activeDocObj = activeModuleDocs.find(d => d.name === activeDocId) || null;
+  const firstSize = Object.values(pageSizes)[0];
+  const basePageWidth = firstSize?.width || 600;
+  const pageNumbers = Array.from(new Array(numPages), (_, i) => i + 1);
+
+  /* ─── Module CRUD ─── */
+  const createModule = async () => {
+    const name = prompt("Module name:")?.trim();
+    if (!name) return;
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("http://localhost:3001/api/modules", {
+        method: "POST",
+        headers: token ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` } : { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create module");
+      const newMod: AppModule = { id: String(data.id), serverId: data.id, name: data.name };
+      setModules(prev => [...prev, newMod]);
+      setModuleDocs(prev => ({ ...prev, [newMod.id]: [] }));
+      setActiveModuleId(newMod.id);
+    } catch (err) {
+      alert("Failed to create module: " + (err as Error).message);
+    }
+  };
+
+  const deleteModule = async (id: string) => {
+    if (!confirm("Delete this module and all its documents?")) return;
+    const mod = modules.find(m => m.id === id);
+    if (mod) {
+      const token = localStorage.getItem("token");
+      try {
+        await fetch(`http://localhost:3001/api/modules/${mod.serverId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } catch { /* ignore */ }
+    }
+    setModules(prev => prev.filter(m => m.id !== id));
+    setModuleDocs(prev => { const { [id]: _, ...rest } = prev; return rest; });
+    if (activeModuleId === id) {
+      setActiveModuleId(null);
+      setActiveDocId(null);
+      setPdfFile(null);
+    }
+  };
+
+  const uploadDocToModule = async (modId: string, file: File) => {
+    if (file.type !== "application/pdf") {
+      alert("Only PDF files are allowed");
+      return;
+    }
+
+    const docName = file.name;
+    const fileUrl = URL.createObjectURL(file);
+    const newDoc: DocInfo = { id: null, name: docName, loading: true, pages: [], localFile: file };
+    setModuleDocs(prev => ({
+      ...prev,
+      [modId]: [...(prev[modId] || []), newDoc],
+    }));
+
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("file", file);
+    const mod = modules.find(m => m.id === modId);
+    if (mod) {
+      formData.append("moduleId", String(mod.serverId));
+    }
+
+    try {
+      const res = await fetch("http://localhost:3001/api/documents/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || "Upload failed");
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (value) buf += decoder.decode(value, { stream: true });
+        if (streamDone) break;
+
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.page) {
+                console.log(data);
+                setModuleDocs(prev => ({
+                  ...prev,
+                  [modId]: (prev[modId] || []).map(d =>
+                    d.name === docName ? { ...d, pages: [...d.pages, data] } : d
+                  ),
+                }));
+              }
+              if (data.id != null) {
+                setModuleDocs(prev => ({
+                  ...prev,
+                  [modId]: (prev[modId] || []).map(d =>
+                    d.name === docName ? { ...d, id: data.id, loading: false } : d
+                  ),
+                }));
+                setActiveModuleId(modId);
+                setActiveDocId(docName);
+                setPdfFile(fileUrl);
+                setPageSizes({});
+                setAnnotations([]);
+                setHistory([]);
+                setHistoryIdx(-1);
+                setSidebarOpen(false);
+                setToast({ message: "Processing done", type: "success" });
+                setTimeout(() => setToast(null), 4000);
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setModuleDocs(prev => ({
+        ...prev,
+        [modId]: (prev[modId] || []).filter(d => d.name !== docName),
+      }));
+      alert("Upload failed: " + (err as Error).message);
+    }
+  };
+
+  const deleteDoc = async (modId: string, docName: string) => {
+    const token = localStorage.getItem("token");
+    let doc: DocInfo | undefined;
+    if (modId === "__server__") {
+      doc = serverDocs.find(d => d.name === docName);
+    } else {
+      doc = (moduleDocs[modId] || []).find(d => d.name === docName);
+    }
+
+    setModuleDocs(prev => ({
+      ...prev,
+      [modId]: (prev[modId] || []).filter(d => d.name !== docName),
+    }));
+    setServerDocs(prev => prev.filter(d => d.name !== docName));
+    if (activeDocId === docName) {
+      setActiveDocId(null);
+      setPdfFile(null);
+    }
+
+    if (doc?.id != null) {
+      fetch(`http://localhost:3001/api/documents/${doc.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
+    }
+  };
+
+  const openDoc = async (modId: string, docName: string) => {
+    const docs = (modId === "__server__" ? serverDocs : moduleDocs[modId]) || [];
+    const doc = docs.find(d => d.name === docName);
+    if (!doc) return;
+    setActiveModuleId(modId);
+    setActiveDocId(docName);
+
+    if (doc.localFile) {
+      setPdfFile(doc.localFile);
+    } else if (doc.id != null) {
+      const token = localStorage.getItem("token");
+      try {
+        const res = await fetch(`http://localhost:3001/api/documents/${doc.id}/file`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          setPdfFile(URL.createObjectURL(blob));
+        }
+      } catch { /* fall through */ }
+    }
+
+    setPageSizes({});
+    setAnnotations([]);
+    setHistory([]);
+    setHistoryIdx(-1);
+    setSidebarOpen(false);
+  };
+
+  /* ─── Annotation ─── */
+  const undo = () => {
+    if (historyIdx < 0) return;
+    const prev = history[historyIdx - 1] || [];
+    setAnnotations(prev);
+    setHistoryIdx(historyIdx - 1);
+  };
+  const redo = () => {
+    if (historyIdx >= history.length - 1) return;
+    const next = history[historyIdx + 1];
+    setAnnotations(next);
+    setHistoryIdx(historyIdx + 1);
+  };
+
+  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
 
   const handleCanvasDown = (pageNum: number) => (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!pdfFile) return;
@@ -403,7 +597,7 @@ export default function UnivAppPage() {
                         <div key={d.name} className="flex items-center gap-1">
                           <button
                             onClick={() => openDoc(mod.id, d.name)}
-                            className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-xl transition-colors ${
+                            className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-sm rounded-xl transition-colors ${
                               activeDocId === d.name
                                 ? "bg-blue-50 text-blue-700 font-medium"
                                 : "text-gray-600 hover:bg-gray-50"
@@ -412,12 +606,17 @@ export default function UnivAppPage() {
                             <FileText size={14} />
                             <span className="truncate">{d.name}</span>
                           </button>
-                          <button
-                            onClick={() => deleteDoc(mod.id, d.name)}
-                            className="p-1 hover:bg-red-50 rounded-md text-gray-400 hover:text-red-500"
-                          >
-                            <X size={12} />
-                          </button>
+                          {d.loading && (
+                            <Loader2 size={12} className="animate-spin text-blue-500" />
+                          )}
+                          {!d.loading && (
+                            <button
+                              onClick={() => deleteDoc(mod.id, d.name)}
+                              className="p-1 hover:bg-red-50 rounded-md text-gray-400 hover:text-red-500"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
                         </div>
                       ))}
                       <button
@@ -445,7 +644,42 @@ export default function UnivAppPage() {
                 </div>
               );
             })}
+            {serverDocs.length > 0 && (
+              <div className="pt-3 border-t border-gray-100 mt-3">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">Documents</h3>
+                {serverDocs.map(d => (
+                  <div key={d.name} className="flex items-center gap-1 mb-0.5">
+                    <button
+                      onClick={() => openDoc("__server__", d.name)}
+                      className={`flex-1 min-w-0 flex items-center gap-2 px-3 py-2 text-sm rounded-xl transition-colors ${
+                        activeDocId === d.name
+                          ? "bg-blue-50 text-blue-700 font-medium"
+                          : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <FileText size={14} />
+                      <span className="truncate">{d.name}</span>
+                    </button>
+                    <button
+                      onClick={() => deleteDoc("__server__", d.name)}
+                      className="p-1 hover:bg-red-50 rounded-md text-gray-400 hover:text-red-500"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-2.5 bg-green-500 text-white rounded-full shadow-lg text-sm font-medium">
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="p-0.5 hover:bg-white/20 rounded-full">
+            <X size={14} />
+          </button>
         </div>
       )}
 
@@ -484,12 +718,22 @@ export default function UnivAppPage() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium hidden sm:block truncate max-w-[120px]">
+              {user.email}
+            </span>
             <button
               onClick={() => setSidebarOpen(true)}
               className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-600"
               title="Browse all modules"
             >
               <BookOpen size={16} />
+            </button>
+            <button
+              onClick={logout}
+              className="p-1.5 hover:bg-red-50 rounded-md text-gray-400 hover:text-red-500"
+              title="Log out"
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </div>
@@ -498,7 +742,7 @@ export default function UnivAppPage() {
         <div className="flex-1 overflow-auto bg-[#F0F2F5]">
           <div className="flex flex-col items-center p-4 pb-24 min-h-full">
             {pdfFile ? (
-              <div ref={pageContainerRef} className="relative" style={{ width: Math.min(pdfWidth + 40, 900) }}>
+              <div ref={pageContainerRef} className="relative" style={{ width: Math.min(basePageWidth + 40, 900) }}>
                 <Document file={pdfFile} onLoadSuccess={onDocumentLoad}>
                   <div className="flex flex-col items-center gap-6">
                     {pageNumbers.map(pageNum => {
@@ -507,7 +751,7 @@ export default function UnivAppPage() {
                         <div key={pageNum} className="relative shadow-xl rounded-lg overflow-hidden bg-white">
                           <Page
                             pageNumber={pageNum}
-                            width={Math.min(basePageWidth, 860) * zoom}
+                            width={Math.min(basePageWidth, 860)}
                             onLoadSuccess={onPageLoad(pageNum)}
                             renderTextLayer
                             renderAnnotationLayer
@@ -515,10 +759,10 @@ export default function UnivAppPage() {
                           {size && (
                             <canvas
                               ref={el => { canvasRefs.current[pageNum] = el; }}
-                              width={size.width * zoom}
-                              height={size.height * zoom}
+                              width={size.width}
+                              height={size.height}
                               className="absolute top-0 left-0 cursor-crosshair"
-                              style={{ width: size.width * zoom, height: size.height * zoom }}
+                              style={{ width: size.width, height: size.height }}
                               onMouseDown={handleCanvasDown(pageNum)}
                               onMouseMove={handleCanvasMove}
                               onMouseUp={handleCanvasUp}
@@ -560,98 +804,6 @@ export default function UnivAppPage() {
             )}
           </div>
         </div>
-        {/* Fixed Annotation Toolbar */}
-        {pdfFile && (
-          <div
-            className="fixed bottom-6 z-30"
-            style={{
-              left: toolbarLeft + toolbarWidth / 2,
-              transform: 'translateX(-50%)',
-            }}
-          >
-            <div className="bg-white rounded-full shadow-lg border border-gray-200 px-3 py-2 flex items-center gap-1">
-              <button
-                onClick={() => setActiveTool("select")}
-                className={`p-2 rounded-full transition-colors ${activeTool === "select" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100 text-gray-600"}`}
-                title="Select"
-              >
-                <MousePointer2 size={16} />
-              </button>
-              <div className="w-px h-6 bg-gray-200 mx-1" />
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => setActiveTool(activeTool === "pen" ? "select" : "pen")}
-                  className={`p-2 rounded-full transition-colors ${activeTool === "pen" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100 text-gray-600"}`}
-                  title="Pen"
-                >
-                  <Pen size={16} />
-                </button>
-                {activeTool === "pen" && (
-                  <div className="flex gap-0.5 ml-0.5">
-                    {PEN_COLORS.map(c => (
-                      <button
-                        key={c}
-                        onClick={() => setPenColor(c)}
-                        className={`w-4 h-4 rounded-full border-2 transition-all ${penColor === c ? "border-gray-800 scale-110" : "border-transparent"}`}
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => setActiveTool(activeTool === "highlight" ? "select" : "highlight")}
-                  className={`p-2 rounded-full transition-colors ${activeTool === "highlight" ? "bg-yellow-100 text-yellow-700" : "hover:bg-gray-100 text-gray-600"}`}
-                  title="Highlight"
-                >
-                  <Highlighter size={16} />
-                </button>
-                {activeTool === "highlight" && (
-                  <div className="flex gap-0.5 ml-0.5">
-                    {HIGHLIGHT_COLORS.map(c => (
-                      <button
-                        key={c}
-                        onClick={() => setHighlightColor(c)}
-                        className={`w-4 h-4 rounded-full border-2 transition-all ${highlightColor === c ? "border-gray-800 scale-110" : "border-transparent"}`}
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setActiveTool(activeTool === "textbox" ? "select" : "textbox")}
-                className={`p-2 rounded-full transition-colors ${activeTool === "textbox" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100 text-gray-600"}`}
-                title="Text box"
-              >
-                <Type size={16} />
-              </button>
-              <div className="w-px h-6 bg-gray-200 mx-1" />
-              <button onClick={() => setZoom(z => Math.max(0.5, z - 0.1))} className="p-2 hover:bg-gray-100 rounded-full text-gray-600" title="Zoom out">
-                <ZoomOut size={16} />
-              </button>
-              <span className="text-xs font-medium text-gray-600 w-10 text-center">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.min(3, z + 0.1))} className="p-2 hover:bg-gray-100 rounded-full text-gray-600" title="Zoom in">
-                <ZoomIn size={16} />
-              </button>
-              <div className="w-px h-6 bg-gray-200 mx-1" />
-              <button onClick={undo} disabled={historyIdx < 0} className="p-2 hover:bg-gray-100 rounded-full text-gray-600 disabled:opacity-30" title="Undo">
-                <Undo2 size={16} />
-              </button>
-              <button onClick={redo} disabled={historyIdx >= history.length - 1} className="p-2 hover:bg-gray-100 rounded-full text-gray-600 disabled:opacity-30" title="Redo">
-                <Redo2 size={16} />
-              </button>
-              <button
-                onClick={() => { setAnnotations([]); setHistory([]); setHistoryIdx(-1); }}
-                className="p-2 hover:bg-red-50 rounded-full text-gray-500 hover:text-red-500 ml-1"
-                title="Clear all annotations"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ─── Right Panel ─── */}
