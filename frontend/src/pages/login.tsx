@@ -17,7 +17,7 @@ export default function LoginPage() {
     if (role === 'univ') {
       window.location.href = '/university/app';
     } else {
-      window.location.href = '/school';
+      window.location.href = '/teacher/upload';
     }
   };
 

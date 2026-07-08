@@ -25,6 +25,8 @@ The pipeline automatically:
 """
 
 import sys
+import argparse
+import json
 import logging
 from pathlib import Path
 
@@ -255,8 +257,30 @@ def process_pdf(pdf_path: Path) -> dict:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="BoostAI Content Pipeline")
+    parser.add_argument("--file", type=str, help="Process a single PDF file instead of scanning input/pdfs/")
+    parser.add_argument("--json", action="store_true", help="Output results as JSON (for backend integration)")
+    args = parser.parse_args()
+
     setup_logging()
     logger = logging.getLogger(__name__)
+
+    if args.file:
+        pdf_path = Path(args.file)
+        if not pdf_path.exists():
+            print(json.dumps({"error": f"File not found: {pdf_path}"}))
+            sys.exit(1)
+        if pdf_path.suffix.lower() != ".pdf":
+            print(json.dumps({"error": f"Not a PDF file: {pdf_path}"}))
+            sys.exit(1)
+
+        result = process_pdf(pdf_path)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            status = "OK" if not result["errors"] else "ERRORS"
+            print(f"  [{status}] {result['pdf_name']}: {result['pages_processed']}p / {result['questions_found']}q / {result['diagrams_found']}d")
+        return
 
     print()
     print("  ============================================")
