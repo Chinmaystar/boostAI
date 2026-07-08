@@ -19,10 +19,9 @@ const envSchema = z.object({
   DEEPSEEK_LLM_URL: z.string().default("https://deepseek-ocr-v2-demo.vercel.app/api/v1"),
   DEEPSEEK_LLM_API_KEY: z.string().default("whale"),
   DEEPSEEK_LLM_MODEL: z.string().default("deepseek-chat"),
-  FIREBASE_PROJECT_ID: z.string().default(""),
-  FIREBASE_CLIENT_EMAIL: z.string().default(""),
-  FIREBASE_PRIVATE_KEY: z.string().default(""),
-  FIREBASE_STORAGE_BUCKET: z.string().default(""),
+  SUPABASE_URL: z.string().default("https://xsjvoqyxpxzyltgzrjtr.supabase.co"),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().default(""),
+  SUPABASE_STORAGE_BUCKET: z.string().default("pdfs"),
 });
 
 const parsed = envSchema.safeParse(process.env);

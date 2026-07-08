@@ -7,6 +7,7 @@ import auth from "./routes/auth.js";
 import modules from "./routes/modules.js";
 import fs from "fs";
 import path from "path";
+import { ensureStorageBucket } from "./services/storage.js";
 
 const app = new Hono();
 
@@ -35,6 +36,7 @@ app.onError((err, c) => {
 console.log(`Server running on http://localhost:${config.PORT}`);
 serve({ fetch: app.fetch, port: config.PORT });
 
+ensureStorageBucket();
 warmUpOllama();
 
 async function warmUpOllama() {
