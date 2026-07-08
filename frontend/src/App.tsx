@@ -1,8 +1,8 @@
 import './index.css'
+import { AuthProvider } from './hooks/useAuth'
 import LandingPage from './pages/landing'
 import SchoolPage from './pages/school'
 import UnivPage from './pages/univ'
-
 import UnivAppPage from './pages/univ-app'
 import LoginPage from './pages/login'
 import SelectPage from './pages/select'
@@ -31,8 +31,15 @@ function TeacherRoutes({ path }: { path: string }) {
   return <TeacherUploadPage />;
 }
 
-function App() {
+function AppContent() {
   const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.has("code") && path === "/") {
+    const role = params.get("state") || "univ";
+    window.location.href = `/login?code=${encodeURIComponent(params.get("code")!)}&role=${role}`;
+    return null;
+  }
 
   if (path === '/school') {
     return <SchoolPage />;
@@ -62,6 +69,14 @@ function App() {
   }
 
   return <LandingPage />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App

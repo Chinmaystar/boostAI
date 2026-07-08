@@ -3,6 +3,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config } from "./config.js";
 import documents from "./routes/documents.js";
+import auth from "./routes/auth.js";
+import modules from "./routes/modules.js";
+import fs from "fs";
+import path from "path";
 
 const app = new Hono();
 
@@ -10,11 +14,18 @@ app.use(
   "/api/*",
   cors({
     origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-    allowMethods: ["POST", "GET", "OPTIONS"],
+    allowMethods: ["POST", "GET", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["Content-Type"],
   })
 );
 
 app.route("/api/documents", documents);
+app.route("/api/auth", auth);
+app.route("/api/modules", modules);
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /* already exists */ }
 
 app.onError((err, c) => {
   console.error("Unhandled error:", err);
