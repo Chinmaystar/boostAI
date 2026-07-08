@@ -46,6 +46,26 @@ interface AppModule {
   name: string;
 }
 
+interface QAItem {
+  questionNumber: number;
+  question: string;
+  answer: string;
+  type: string;
+}
+interface Flashcard {
+  front: string;
+  back: string;
+}
+interface SummaryResult {
+  summary: string;
+  keyPoints: string[];
+}
+interface StudyContent {
+  quiz: QAItem[];
+  flashcards: Flashcard[];
+  summary: SummaryResult | null;
+}
+
 const PEN_COLORS = ["#000000", "#2563EB", "#DC2626", "#16A34A", "#9333EA"];
 const HIGHLIGHT_COLORS = ["#FEF08A", "#86EFAC", "#93C5FD", "#FDA4AF", "#D8B4FE"];
 
@@ -89,6 +109,9 @@ export default function UnivAppPage() {
 
   /* right panel */
   const [rightMode, setRightMode] = useState<RightMode>("tiles");
+  const [studyContent, setStudyContent] = useState<Record<string, StudyContent>>({});
+  const [generatingType, setGeneratingType] = useState<string | null>(null);
+  const [flashcardIdx, setFlashcardIdx] = useState(0);
 
   /* refs */
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({});
@@ -418,6 +441,51 @@ export default function UnivAppPage() {
     setHistory([]);
     setHistoryIdx(-1);
     setSidebarOpen(false);
+  };
+
+  /* ─── Study content ─── */
+  const ensureStudyContent = async (type: "quiz" | "flashcards" | "summary") => {
+    if (!activeDocObj || activeDocObj.id == null) return;
+    const docId = activeDocObj.id;
+    const docName = activeDocObj.name;
+
+    if (studyContent[docName]?.[type] && (type !== "summary" || studyContent[docName].summary)) {
+      return;
+    }
+
+    setGeneratingType(type);
+    const token = localStorage.getItem("token");
+    try {
+      let res = await fetch(
+        `http://localhost:3001/api/documents/${docId}/study-content?type=${type}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setStudyContent(prev => ({
+          ...prev,
+          [docName]: { ...prev[docName], [type]: data.content },
+        }));
+        setGeneratingType(null);
+        return;
+      }
+
+      /* Not cached — generate */
+      res = await fetch(
+        `http://localhost:3001/api/documents/${docId}/generate?type=${type}`,
+        { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) throw new Error("Generation failed");
+      const data = await res.json();
+      setStudyContent(prev => ({
+        ...prev,
+        [docName]: { ...prev[docName], [type]: data.content },
+      }));
+    } catch (err) {
+      console.error("Study content error:", err);
+    } finally {
+      setGeneratingType(null);
+    }
   };
 
   /* ─── Annotation ─── */
@@ -812,7 +880,7 @@ export default function UnivAppPage() {
           <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Study Tools</p>
             <button
-              onClick={() => setRightMode("quiz")}
+              onClick={() => { setRightMode("quiz"); setFlashcardIdx(0); ensureStudyContent("quiz"); }}
               className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-200 hover:shadow-md transition-shadow group"
             >
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -824,7 +892,7 @@ export default function UnivAppPage() {
               </div>
             </button>
             <button
-              onClick={() => setRightMode("flashcards")}
+              onClick={() => { setRightMode("flashcards"); setFlashcardIdx(0); ensureStudyContent("flashcards"); }}
               className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl border border-green-200 hover:shadow-md transition-shadow group"
             >
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -836,7 +904,7 @@ export default function UnivAppPage() {
               </div>
             </button>
             <button
-              onClick={() => setRightMode("summary")}
+              onClick={() => { setRightMode("summary"); ensureStudyContent("summary"); }}
               className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border border-blue-200 hover:shadow-md transition-shadow group"
             >
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -858,12 +926,213 @@ export default function UnivAppPage() {
                 {rightMode === "quiz" ? "Quiz" : rightMode === "flashcards" ? "Flashcards" : "Summary"}
               </span>
             </div>
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-              Content coming soon
+            <div className="flex-1 overflow-y-auto">
+              {rightMode === "quiz" && <QuizPanel
+                items={activeDocObj ? studyContent[activeDocObj.name]?.quiz || null : null}
+                loading={generatingType === "quiz"}
+                onGenerate={() => ensureStudyContent("quiz")}
+              />}
+              {rightMode === "flashcards" && <FlashcardsPanel
+                items={activeDocObj ? studyContent[activeDocObj.name]?.flashcards || null : null}
+                loading={generatingType === "flashcards"}
+                onGenerate={() => ensureStudyContent("flashcards")}
+                idx={flashcardIdx}
+                setIdx={setFlashcardIdx}
+              />}
+              {rightMode === "summary" && <SummaryPanel
+                data={activeDocObj ? studyContent[activeDocObj.name]?.summary || null : null}
+                pages={activeDocObj?.pages || null}
+                loading={generatingType === "summary"}
+                onGenerate={() => ensureStudyContent("summary")}
+              />}
             </div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Sub-components ─── */
+
+function QuizPanel({ items, loading, onGenerate }: {
+  items: QAItem[] | null;
+  loading: boolean;
+  onGenerate: () => void;
+}) {
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+        <Loader2 size={24} className="animate-spin" />
+        <span className="text-sm">Generating quiz questions...</span>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
+        <p className="text-sm">No questions yet</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors">
+          Generate Quiz
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      {items.map(q => (
+        <div key={q.questionNumber} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold text-gray-400 shrink-0">Q{q.questionNumber}</span>
+            <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 shrink-0">{q.type}</span>
+          </div>
+          <p className="text-sm font-medium text-gray-900 mb-3">{q.question}</p>
+          <button
+            onClick={() => setRevealed(p => ({ ...p, [q.questionNumber]: !p[q.questionNumber] }))}
+            className="text-xs font-semibold text-purple-600 hover:text-purple-700 transition-colors"
+          >
+            {revealed[q.questionNumber] ? "Hide answer" : "Show answer"}
+          </button>
+          {revealed[q.questionNumber] && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{q.answer}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FlashcardsPanel({ items, loading, onGenerate, idx, setIdx }: {
+  items: Flashcard[] | null;
+  loading: boolean;
+  onGenerate: () => void;
+  idx: number;
+  setIdx: (v: number) => void;
+}) {
+  const [flipped, setFlipped] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+        <Loader2 size={24} className="animate-spin" />
+        <span className="text-sm">Generating flashcards...</span>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
+        <p className="text-sm">No flashcards yet</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors">
+          Generate Flashcards
+        </button>
+      </div>
+    );
+  }
+
+  const card = items[idx];
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 p-4">
+      <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
+        <button
+          onClick={() => { setIdx(Math.max(0, idx - 1)); setFlipped(false); }}
+          disabled={idx === 0}
+          className="p-1.5 hover:bg-gray-100 rounded-md disabled:opacity-30 transition-colors"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <span>{idx + 1} / {items.length}</span>
+        <button
+          onClick={() => { setIdx(Math.min(items.length - 1, idx + 1)); setFlipped(false); }}
+          disabled={idx === items.length - 1}
+          className="p-1.5 hover:bg-gray-100 rounded-md disabled:opacity-30 transition-colors"
+        >
+          <ArrowLeft size={16} className="rotate-180" />
+        </button>
+      </div>
+
+      <div
+        onClick={() => setFlipped(!flipped)}
+        className="w-full min-h-[260px] cursor-pointer perspective-1000"
+      >
+        <div className={`relative w-full min-h-[260px] transition-transform duration-500 [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""}`}>
+          <div className="absolute inset-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center [backface-visibility:hidden]">
+            <p className="text-sm font-medium text-gray-900 text-center leading-relaxed">{card.front}</p>
+            <p className="mt-4 text-xs text-gray-400">Tap to flip</p>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center [transform:rotateY(180deg)] [backface-visibility:hidden]">
+            <p className="text-sm text-gray-700 text-center leading-relaxed whitespace-pre-wrap">{card.back}</p>
+            <p className="mt-4 text-xs text-gray-400">Tap to flip back</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryPanel({ data, pages, loading, onGenerate }: {
+  data: SummaryResult | null;
+  pages: { page: number; text: string }[] | null;
+  loading: boolean;
+  onGenerate: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
+        <Loader2 size={24} className="animate-spin" />
+        <span className="text-sm">Generating summary...</span>
+      </div>
+    );
+  }
+
+  if (!data && (!pages || pages.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
+        <p className="text-sm">No content to summarize</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+          Generate Summary
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      {data ? (
+        <>
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{data.summary}</p>
+          </div>
+          {data.keyPoints.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Key Points</h4>
+              <ul className="space-y-1.5">
+                {data.keyPoints.map((kp, i) => (
+                  <li key={i} className="flex items-start gap-2 px-1">
+                    <span className="text-blue-500 mt-0.5 shrink-0">•</span>
+                    <span className="text-sm text-gray-700">{kp}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      ) : (
+        pages && pages.map(p => (
+          <div key={p.page} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Page {p.page}</h4>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{p.text}</p>
+          </div>
+        ))
+      )}
     </div>
   );
 }

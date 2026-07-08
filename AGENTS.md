@@ -70,6 +70,10 @@ boostAI/
 - **Delete doc**: Calls `DELETE /api/documents/:id` on server + removes from state.
 - **Long filenames**: Scrollable horizontally without visible scrollbar (`overflow-x-auto whitespace-nowrap scrollbar-none`).
 - **PDF rendering**: `react-pdf` with continuous scroll. PDF fetched from server as blob URL or from local File object.
+- **Study content**: Q&A, flashcards, and summaries are generated on-demand via DeepSeek LLM API (OpenAI-compatible chat completions). Page text from OCR is fed to the LLM with structured JSON prompts. Results cached in DB `study_content` JSONB column.
+- **Right panel**: Quiz (scrollable Q&A list with reveal-answer), Flashcards (single-card flip view with prev/next), Summary (LLM-generated summary + key points; falls back to raw page text).
+- **PDF storage**: Files uploaded to Firebase Cloud Storage (configurable via env vars). Falls back to local `uploads/` directory if Firebase not configured.
+- **SSE stream reading**: The `while` loop reads chunks with `reader.read()`. CRITICAL: `value` is processed into `buf` BEFORE checking `streamDone`, because the last chunk may carry the final data with `done: true`. If you break before appending `value`, the done event is silently lost.
 - **Right panel**: Quiz / Flashcards / Summary tiles (content coming soon)
 
 ## Conventions

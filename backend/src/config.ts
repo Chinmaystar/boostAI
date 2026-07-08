@@ -16,6 +16,13 @@ const envSchema = z.object({
   JWT_SECRET: z.string().default("dev-secret-change-in-production"),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
+  DEEPSEEK_LLM_URL: z.string().default("https://deepseek-ocr-v2-demo.vercel.app/api/v1"),
+  DEEPSEEK_LLM_API_KEY: z.string().default("whale"),
+  DEEPSEEK_LLM_MODEL: z.string().default("deepseek-chat"),
+  FIREBASE_PROJECT_ID: z.string().default(""),
+  FIREBASE_CLIENT_EMAIL: z.string().default(""),
+  FIREBASE_PRIVATE_KEY: z.string().default(""),
+  FIREBASE_STORAGE_BUCKET: z.string().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);

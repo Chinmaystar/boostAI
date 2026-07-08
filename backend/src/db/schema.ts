@@ -23,5 +23,10 @@ export const documents = pgTable("documents", {
   pageCount: integer("page_count"),
   storagePath: text("storage_path").notNull(),
   pages: jsonb("pages").$type<{ page: number; text: string }[]>(),
+  studyContent: jsonb("study_content").$type<{
+    quiz: { questionNumber: number; question: string; answer: string; type: string }[];
+    flashcards: { front: string; back: string }[];
+    summary: { summary: string; keyPoints: string[] } | null;
+  } | null>().default(null),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
