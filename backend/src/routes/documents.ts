@@ -9,7 +9,7 @@ import { authGuard } from "../middleware/auth.js";
 import { db } from "../db/index.js";
 import { documents as documentsTable } from "../db/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
-import { uploadFile, getFileStream, deleteFile } from "../services/storage.js";
+import { uploadFile, getSignedUrl, getFileStream, deleteFile } from "../services/storage.js";
 import { generateQuestions, generateFlashcards, generateSummary } from "../services/llm.js";
 
 const documents = new Hono();
@@ -127,6 +127,13 @@ documents.get("/:id/file", authGuard, async (c) => {
   const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, id)).limit(1);
   if (!doc || doc.userId !== user.userId) return c.json({ error: "Not found" }, 404);
 
+  /* Try signed URL first (Supabase) */
+  const signedUrl = await getSignedUrl(doc.storagePath);
+  if (signedUrl) {
+    return c.redirect(signedUrl, 302);
+  }
+
+  /* Fallback: proxy via backend */
   const { buffer } = await getFileStream(doc.storagePath);
   if (!buffer) return c.json({ error: "File not found" }, 404);
 

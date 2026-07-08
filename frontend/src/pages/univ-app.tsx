@@ -790,13 +790,6 @@ export default function UnivAppPage() {
               {user.email}
             </span>
             <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-600"
-              title="Browse all modules"
-            >
-              <BookOpen size={16} />
-            </button>
-            <button
               onClick={logout}
               className="p-1.5 hover:bg-red-50 rounded-md text-gray-400 hover:text-red-500"
               title="Log out"
@@ -879,6 +872,7 @@ export default function UnivAppPage() {
         {rightMode === "tiles" ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Study Tools</p>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">for this pdf only</div>
             <button
               onClick={() => { setRightMode("quiz"); setFlashcardIdx(0); ensureStudyContent("quiz"); }}
               className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-200 hover:shadow-md transition-shadow group"
@@ -917,7 +911,7 @@ export default function UnivAppPage() {
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             <div className="flex items-center gap-2 p-4 border-b border-gray-100">
               <button onClick={() => setRightMode("tiles")} className="p-1 hover:bg-gray-100 rounded-md text-gray-500">
                 <ArrowLeft size={18} />
@@ -926,7 +920,7 @@ export default function UnivAppPage() {
                 {rightMode === "quiz" ? "Quiz" : rightMode === "flashcards" ? "Flashcards" : "Summary"}
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {rightMode === "quiz" && <QuizPanel
                 items={activeDocObj ? studyContent[activeDocObj.name]?.quiz || null : null}
                 loading={generatingType === "quiz"}

@@ -90,7 +90,7 @@ function mapPipelineType(pipelineType: string): string {
 function runPipeline(pdfPath: string): Promise<PipelineSummary> {
   return new Promise((resolve, reject) => {
     const args = ["--file", pdfPath, "--json"];
-    execFile("python", [PIPELINE_SCRIPT, ...args], {
+    execFile("python3", [PIPELINE_SCRIPT, ...args], {
       timeout: 120_000,
       maxBuffer: 10 * 1024 * 1024,
     }, (err, stdout, stderr) => {

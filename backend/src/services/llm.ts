@@ -33,13 +33,21 @@ async function chatComplete(
     temperature: 0.3,
   };
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (config.DEEPSEEK_LLM_API_KEY) {
+    headers["Authorization"] = `Bearer ${config.DEEPSEEK_LLM_API_KEY}`;
+  }
+  if (config.DEEPSEEK_LLM_URL.includes("openrouter.ai")) {
+    headers["HTTP-Referer"] = "http://localhost:3000";
+    headers["X-Title"] = "boostAI";
+  }
+
   const baseUrl = config.DEEPSEEK_LLM_URL.replace(/\/+$/, "");
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.DEEPSEEK_LLM_API_KEY}`,
-    },
+    headers,
     body: JSON.stringify(body),
     signal,
   });
@@ -53,6 +61,27 @@ async function chatComplete(
     choices: { message: { content: string } }[];
   };
   return data.choices[0]?.message?.content || "";
+}
+
+function cleanAndParse(raw: string): any {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/gi, "")
+    .replace(/\s*```\s*$/g, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    /* try extracting top-level array/object via bracket matching */
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try { return JSON.parse(arrayMatch[0]); } catch {}
+    }
+    const objMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (objMatch) {
+      try { return JSON.parse(objMatch[0]); } catch {}
+    }
+    throw new Error("Failed to parse LLM response as JSON");
+  }
 }
 
 function buildPageText(pages: { page: number; text: string }[]): string {
@@ -83,8 +112,7 @@ Generate 5-10 questions covering the most important concepts.`;
     { role: "user", content: pageText },
   ]);
 
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*$/g, "").trim();
-  const parsed = JSON.parse(cleaned);
+  const parsed = cleanAndParse(raw);
   return Array.isArray(parsed) ? parsed : [];
 }
 
@@ -108,8 +136,7 @@ Generate 10-15 flashcards covering the most important terms and concepts.`;
     { role: "user", content: pageText },
   ]);
 
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*$/g, "").trim();
-  const parsed = JSON.parse(cleaned);
+  const parsed = cleanAndParse(raw);
   return Array.isArray(parsed) ? parsed : [];
 }
 
@@ -131,8 +158,7 @@ Return ONLY a valid JSON object (no markdown, no code fences):
     { role: "user", content: pageText },
   ]);
 
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*$/g, "").trim();
-  const parsed = JSON.parse(cleaned);
+  const parsed = cleanAndParse(raw);
   return {
     summary: parsed.summary || "",
     keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],

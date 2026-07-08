@@ -1,79 +1,69 @@
 import { config } from "../config.js";
+import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 
-const SUPABASE_STORAGE_URL = `${config.SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/object`;
-const SUPABASE_MGMT_URL = `${config.SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/bucket`;
+let supabase: ReturnType<typeof createClient> | null = null;
+function getClient() {
+  if (!supabase) {
+    supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY);
+  }
+  return supabase;
+}
 
-function bucketPath(userId: number, fileName: string): string {
-  return `${config.SUPABASE_STORAGE_BUCKET}/${userId}/${Date.now()}-${fileName}`;
+function storagePath(userId: number, docId?: number): string {
+  const prefix = `${userId}/`;
+  if (docId) return `${prefix}${docId}.pdf`;
+  return `${prefix}${Date.now()}.pdf`;
 }
 
 export async function ensureStorageBucket(): Promise<boolean> {
   if (!config.SUPABASE_SERVICE_ROLE_KEY) return false;
+  const client = getClient();
   const bucket = config.SUPABASE_STORAGE_BUCKET;
 
-  const listRes = await fetch(SUPABASE_MGMT_URL, {
-    headers: {
-      Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (listRes.ok) {
-    const buckets = await listRes.json() as { id: string }[];
-    if (buckets.some(b => b.id === bucket)) return true;
+  const { data: existing, error: listErr } = await client.storage.getBucket(bucket);
+  if (existing) return true;
+  if (listErr && !listErr.message.includes("not found")) {
+    console.warn(`[storage] getBucket error: ${listErr.message}`);
   }
 
-  const createRes = await fetch(SUPABASE_MGMT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      id: bucket,
-      name: bucket,
-      public: true,
-      allowed_mime_types: ["application/pdf"],
-      file_size_limit: 104857600,
-    }),
+  const { error: createErr } = await client.storage.createBucket(bucket, {
+    public: false,
+    allowedMimeTypes: ["application/pdf"],
+    fileSizeLimit: 52428800,
   });
 
-  if (createRes.ok) {
-    console.log(`[storage] Bucket "${bucket}" created`);
-    return true;
+  if (createErr) {
+    console.warn(`[storage] Failed to create bucket: ${createErr.message}`);
+    return false;
   }
 
-  const errText = await createRes.text().catch(() => "unknown");
-  console.warn(`[storage] Failed to create bucket: ${createRes.status} ${errText}`);
-  return false;
+  console.log(`[storage] Bucket "${bucket}" created`);
+  return true;
 }
 
 export async function uploadFile(
   buffer: Buffer,
   userId: number,
-  fileName: string
+  fileName: string,
+  docId?: number
 ): Promise<string> {
   if (config.SUPABASE_SERVICE_ROLE_KEY) {
-    const objectPath = bucketPath(userId, fileName);
-    const url = `${SUPABASE_STORAGE_URL}/${objectPath}`;
+    const filePath = storagePath(userId, docId);
+    const client = getClient();
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/pdf",
-        "x-upsert": "true",
-      },
-      body: new Uint8Array(buffer),
-    });
+    const { error } = await client.storage
+      .from(config.SUPABASE_STORAGE_BUCKET)
+      .upload(filePath, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => "unknown");
-      console.warn(`[storage] Supabase upload failed (${res.status}): ${err}, falling back to local`);
+    if (error) {
+      console.warn(`[storage] Supabase upload failed (${error.message}), falling back to local`);
     } else {
-      return `supabase://${objectPath}`;
+      return `supabase://${filePath}`;
     }
   }
 
@@ -84,25 +74,45 @@ export async function uploadFile(
   return `local://${dest}`;
 }
 
+export async function getSignedUrl(
+  storagePath: string,
+  expiresIn: number = 3600
+): Promise<string | null> {
+  if (!storagePath.startsWith("supabase://")) return null;
+  if (!config.SUPABASE_SERVICE_ROLE_KEY) return null;
+
+  const filePath = storagePath.slice("supabase://".length);
+  const client = getClient();
+
+  const { data, error } = await client.storage
+    .from(config.SUPABASE_STORAGE_BUCKET)
+    .createSignedUrl(filePath, expiresIn);
+
+  if (error || !data) {
+    console.warn(`[storage] Signed URL error: ${error?.message}`);
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
 export async function getFileStream(
   storagePath: string
 ): Promise<{ buffer: Buffer | null }> {
   if (storagePath.startsWith("supabase://")) {
-    const objectPath = storagePath.slice("supabase://".length);
-    const url = `${SUPABASE_STORAGE_URL}/${objectPath}`;
+    const filePath = storagePath.slice("supabase://".length);
+    const client = getClient();
 
-    const res = await fetch(url, {
-      headers: config.SUPABASE_SERVICE_ROLE_KEY
-        ? { Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}` }
-        : {},
-    });
+    const { data, error } = await client.storage
+      .from(config.SUPABASE_STORAGE_BUCKET)
+      .download(filePath);
 
-    if (!res.ok) {
-      console.warn(`[storage] Supabase download failed: ${res.status}`);
+    if (error || !data) {
+      console.warn(`[storage] Supabase download failed: ${error?.message}`);
       return { buffer: null };
     }
 
-    const arrayBuf = await res.arrayBuffer();
+    const arrayBuf = await data.arrayBuffer();
     return { buffer: Buffer.from(arrayBuf) };
   }
 
@@ -117,16 +127,15 @@ export async function getFileStream(
 export async function deleteFile(storagePath: string): Promise<void> {
   if (storagePath.startsWith("supabase://")) {
     if (!config.SUPABASE_SERVICE_ROLE_KEY) return;
-    const objectPath = storagePath.slice("supabase://".length);
-    const url = `${SUPABASE_STORAGE_URL}/${objectPath}`;
+    const filePath = storagePath.slice("supabase://".length);
+    const client = getClient();
 
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}` },
-    });
+    const { error } = await client.storage
+      .from(config.SUPABASE_STORAGE_BUCKET)
+      .remove([filePath]);
 
-    if (!res.ok) {
-      console.warn(`[storage] Supabase delete failed: ${res.status}`);
+    if (error) {
+      console.warn(`[storage] Supabase delete failed: ${error.message}`);
     }
     return;
   }
