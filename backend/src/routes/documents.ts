@@ -3,6 +3,8 @@ import { streamSSE } from "hono/streaming";
 import fs from "fs";
 import path from "path";
 import { processPDF } from "../services/documentProcessor.js";
+import { processPDFWithPipeline } from "../services/pipelineBridge.js";
+import { getDocumentDir } from "../services/pipelineBridge.js";
 import { authGuard } from "../middleware/auth.js";
 import { db } from "../db/index.js";
 import { documents as documentsTable } from "../db/schema.js";
@@ -31,6 +33,8 @@ documents.post("/upload", authGuard, async (c) => {
   const moduleId = moduleIdStr ? Number(moduleIdStr) : null;
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  const documentId = `doc-${Date.now()}`;
 
   /* Upload to Firebase (or local fallback) */
   const storagePath = await uploadFile(buffer, user.userId, file.name);
@@ -68,8 +72,32 @@ documents.post("/upload", authGuard, async (c) => {
           method: result.method,
           pageCount: result.pageCount,
           tookMs: Date.now() - start,
+          documentId,
         }),
       });
+
+      try {
+        const extractionResult = await processPDFWithPipeline(tempFile, documentId);
+
+        await stream.writeSSE({
+          event: "extraction",
+          data: JSON.stringify(extractionResult),
+        });
+
+        await stream.writeSSE({
+          event: "done",
+          data: JSON.stringify({
+            method: "content-pipeline",
+            pageCount: extractionResult.pageCount,
+            questionCount: extractionResult.questionCount,
+            tookMs: Date.now() - start,
+            documentId,
+          }),
+        });
+      } catch (err) {
+        console.error("[pipeline] extraction failed:", (err as Error).message);
+        /* non-fatal: study tools will use LLM-generated content instead */
+      }
     } finally {
       try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
     }
@@ -179,6 +207,40 @@ documents.get("/:id/study-content", authGuard, async (c) => {
   }
 
   return c.json(doc.studyContent || { quiz: [], flashcards: [], summary: null });
+});
+
+/* ─── Pipeline page images ─── */
+
+documents.get("/:id/pages/:pageNumber", async (c) => {
+  const { id, pageNumber } = c.req.param();
+  const docDir = getDocumentDir(id);
+  if (!docDir) {
+    return c.json({ error: "Document not found" }, 404);
+  }
+  const pageFile = path.join(docDir, "pages", `page_${pageNumber.padStart(3, "0")}.png`);
+
+  if (!fs.existsSync(pageFile)) {
+    return c.json({ error: "Page image not found" }, 404);
+  }
+
+  const img = fs.readFileSync(pageFile);
+  return c.newResponse(img, 200, { "Content-Type": "image/png" });
+});
+
+documents.get("/:id/diagrams/:diagramId", async (c) => {
+  const { id, diagramId } = c.req.param();
+  const docDir = getDocumentDir(id);
+  if (!docDir) {
+    return c.json({ error: "Document not found" }, 404);
+  }
+  const digramFile = path.join(docDir, "diagrams", `${diagramId}.png`);
+
+  if (!fs.existsSync(digramFile)) {
+    return c.json({ error: "Diagram image not found" }, 404);
+  }
+
+  const img = fs.readFileSync(digramFile);
+  return c.newResponse(img, 200, { "Content-Type": "image/png" });
 });
 
 export default documents;
