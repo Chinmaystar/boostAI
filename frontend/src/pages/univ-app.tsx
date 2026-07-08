@@ -113,6 +113,10 @@ export default function UnivAppPage() {
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [flashcardIdx, setFlashcardIdx] = useState(0);
 
+  /* module name input */
+  const [moduleInputOpen, setModuleInputOpen] = useState(false);
+  const [moduleInput, setModuleInput] = useState("");
+
   /* refs */
   const canvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({});
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -253,8 +257,14 @@ export default function UnivAppPage() {
 
   /* ─── Module CRUD ─── */
   const createModule = async () => {
-    const name = prompt("Module name:")?.trim();
-    if (!name) return;
+    setModuleInputOpen(true);
+    setModuleInput("");
+  };
+
+  const submitModule = async () => {
+    const name = moduleInput.trim();
+    if (!name) { setModuleInputOpen(false); return; }
+    setModuleInputOpen(false);
     const token = localStorage.getItem("token");
     try {
       const res = await fetch("http://localhost:3001/api/modules", {
@@ -742,6 +752,29 @@ export default function UnivAppPage() {
         </div>
       )}
 
+      {moduleInputOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setModuleInputOpen(false)}>
+          <div
+            className="bg-white rounded-2xl shadow-xl p-5 w-80 border border-gray-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold text-gray-800 mb-3">Module name</p>
+            <input
+              autoFocus
+              value={moduleInput}
+              onChange={e => setModuleInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") submitModule(); if (e.key === "Escape") setModuleInputOpen(false); }}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+              placeholder="e.g. Calculus II"
+            />
+            <div className="flex justify-center gap-3 mt-4">
+              <button onClick={() => setModuleInputOpen(false)} className="px-4 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Cancel</button>
+              <button onClick={submitModule} className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-2.5 bg-green-500 text-white rounded-full shadow-lg text-sm font-medium">
           <span>{toast.message}</span>
@@ -800,7 +833,7 @@ export default function UnivAppPage() {
         </div>
 
         {/* PDF Viewer */}
-        <div className="flex-1 overflow-auto bg-[#F0F2F5]">
+        <div className="flex-1 overflow-auto bg-sky-50">
           <div className="flex flex-col items-center p-4 pb-24 min-h-full">
             {pdfFile ? (
               <div ref={pageContainerRef} className="relative" style={{ width: Math.min(basePageWidth + 40, 900) }}>
