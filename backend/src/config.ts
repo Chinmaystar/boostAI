@@ -21,7 +21,7 @@ const envSchema = z.object({
   DEEPSEEK_LLM_MODEL: z.string().default("deepseek-chat"),
   SUPABASE_URL: z.string().default("https://xsjvoqyxpxzyltgzrjtr.supabase.co"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(""),
-  SUPABASE_STORAGE_BUCKET: z.string().default("pdfs"),
+  SUPABASE_STORAGE_BUCKET: z.string().default("documents"),
 });
 
 const parsed = envSchema.safeParse(process.env);

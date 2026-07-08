@@ -3,7 +3,7 @@ import { authGuard } from "../middleware/auth.js";
 import { db } from "../db/index.js";
 import { modules as modulesTable, documents as documentsTable } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import fs from "fs";
+import { deleteFile } from "../services/storage.js";
 
 const modules = new Hono();
 
@@ -57,7 +57,7 @@ modules.delete("/:id", authGuard, async (c) => {
 
   const docs = await db.select().from(documentsTable).where(eq(documentsTable.moduleId, id));
   for (const doc of docs) {
-    try { fs.unlinkSync(doc.storagePath); } catch { /* file may be gone */ }
+    await deleteFile(doc.storagePath);
   }
   await db.delete(documentsTable).where(eq(documentsTable.moduleId, id)).execute();
   await db.delete(modulesTable).where(eq(modulesTable.id, id)).execute();
