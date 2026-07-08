@@ -22,6 +22,8 @@ interface ChatMessage {
   content: string;
 }
 
+const CHUNK_SIZE = 2;
+
 async function chatComplete(
   messages: ChatMessage[],
   signal?: AbortSignal
@@ -71,7 +73,6 @@ function cleanAndParse(raw: string): any {
   try {
     return JSON.parse(cleaned);
   } catch {
-    /* try extracting top-level array/object via bracket matching */
     const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
     if (arrayMatch) {
       try { return JSON.parse(arrayMatch[0]); } catch {}
@@ -90,12 +91,25 @@ function buildPageText(pages: { page: number; text: string }[]): string {
     .join("\n\n");
 }
 
+function chunkPages<T>(pages: T[]): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < pages.length; i += CHUNK_SIZE) {
+    chunks.push(pages.slice(i, i + CHUNK_SIZE));
+  }
+  return chunks;
+}
+
+/* ─── Quiz (chunked) ─── */
+
 export async function generateQuestions(
   pages: { page: number; text: string }[]
 ): Promise<QAItem[]> {
-  const pageText = buildPageText(pages);
+  const chunks = chunkPages(pages);
+  const all: QAItem[] = [];
 
-  const systemPrompt = `You are an expert educator. Given textbook page text, generate comprehensive questions and answers that test understanding of key concepts.
+  for (const chunk of chunks) {
+    const pageText = buildPageText(chunk);
+    const systemPrompt = `You are an expert educator. Given textbook page text, generate questions and answers that test understanding of key concepts.
 
 Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 {
@@ -105,23 +119,40 @@ Return ONLY a valid JSON array (no markdown, no code fences). Each object:
   "type": "short-answer" | "explanation" | "proof" | "mcq"
 }
 
-Generate 5-10 questions covering the most important concepts.`;
+Generate 3-6 questions for this section.`;
 
-  const raw = await chatComplete([
-    { role: "system", content: systemPrompt },
-    { role: "user", content: pageText },
-  ]);
+    const raw = await chatComplete([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: pageText },
+    ]);
 
-  const parsed = cleanAndParse(raw);
-  return Array.isArray(parsed) ? parsed : [];
+    const parsed = cleanAndParse(raw);
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        all.push({
+          questionNumber: all.length + 1,
+          question: item.question || "",
+          answer: item.answer || "",
+          type: item.type || "short-answer",
+        });
+      }
+    }
+  }
+
+  return all;
 }
+
+/* ─── Flashcards (chunked) ─── */
 
 export async function generateFlashcards(
   pages: { page: number; text: string }[]
 ): Promise<Flashcard[]> {
-  const pageText = buildPageText(pages);
+  const chunks = chunkPages(pages);
+  const all: Flashcard[] = [];
 
-  const systemPrompt = `You are an expert educator. Given textbook page text, create flashcards with key concepts on the front and clear explanations on the back.
+  for (const chunk of chunks) {
+    const pageText = buildPageText(chunk);
+    const systemPrompt = `You are an expert educator. Given textbook page text, create flashcards with key concepts on the front and clear explanations on the back.
 
 Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 {
@@ -129,18 +160,69 @@ Return ONLY a valid JSON array (no markdown, no code fences). Each object:
   "back": string
 }
 
-Generate 10-15 flashcards covering the most important terms and concepts.`;
+Generate 3-5 flashcards for this section.`;
+
+    const raw = await chatComplete([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: pageText },
+    ]);
+
+    const parsed = cleanAndParse(raw);
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (item.front && item.back) {
+          all.push({ front: item.front, back: item.back });
+        }
+      }
+    }
+  }
+
+  return all;
+}
+
+/* ─── Summary (chunked) ─── */
+
+export async function generateSummary(
+  pages: { page: number; text: string }[]
+): Promise<SummaryResult> {
+  const chunks = chunkPages(pages);
+
+  if (chunks.length === 1) {
+    return generateSingleSummary(chunks[0]);
+  }
+
+  const partials: SummaryResult[] = [];
+  for (const chunk of chunks) {
+    partials.push(await generateSingleSummary(chunk));
+  }
+
+  const combinedText = partials
+    .map((p, i) => `--- Part ${i + 1} ---\nSummary: ${p.summary}\nKey points:\n${p.keyPoints.map(k => `- ${k}`).join("\n")}`)
+    .join("\n\n");
+
+  const mergePrompt = `You are an expert educator. Below are summaries of different parts of a textbook document. Combine them into one coherent final summary.
+
+Return ONLY a valid JSON object (no markdown, no code fences):
+{
+  "summary": string (2-3 paragraph consolidated summary),
+  "keyPoints": string[] (5-10 consolidated bullet-point key takeaways)
+}`;
 
   const raw = await chatComplete([
-    { role: "system", content: systemPrompt },
-    { role: "user", content: pageText },
+    { role: "system", content: mergePrompt },
+    { role: "user", content: combinedText },
   ]);
 
   const parsed = cleanAndParse(raw);
-  return Array.isArray(parsed) ? parsed : [];
+  return {
+    summary: parsed.summary || partials.map(p => p.summary).join("\n\n"),
+    keyPoints: Array.isArray(parsed.keyPoints)
+      ? parsed.keyPoints
+      : partials.flatMap(p => p.keyPoints),
+  };
 }
 
-export async function generateSummary(
+async function generateSingleSummary(
   pages: { page: number; text: string }[]
 ): Promise<SummaryResult> {
   const pageText = buildPageText(pages);
@@ -150,7 +232,7 @@ export async function generateSummary(
 Return ONLY a valid JSON object (no markdown, no code fences):
 {
   "summary": string (2-3 paragraph summary),
-  "keyPoints": string[] (5-10 bullet-point key takeaways)
+  "keyPoints": string[] (5-8 bullet-point key takeaways)
 }`;
 
   const raw = await chatComplete([

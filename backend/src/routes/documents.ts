@@ -168,18 +168,23 @@ documents.post("/:id/generate", authGuard, async (c) => {
   if (!doc.pages || doc.pages.length === 0) return c.json({ error: "Document has no extracted text" }, 400);
 
   let content: any;
-  switch (type) {
-    case "quiz":
-      content = await generateQuestions(doc.pages);
-      break;
-    case "flashcards":
-      content = await generateFlashcards(doc.pages);
-      break;
-    case "summary":
-      content = await generateSummary(doc.pages);
-      break;
-    default:
-      return c.json({ error: "Unknown type. Use quiz, flashcards, or summary" }, 400);
+  try {
+    switch (type) {
+      case "quiz":
+        content = await generateQuestions(doc.pages);
+        break;
+      case "flashcards":
+        content = await generateFlashcards(doc.pages);
+        break;
+      case "summary":
+        content = await generateSummary(doc.pages);
+        break;
+      default:
+        return c.json({ error: "Unknown type. Use quiz, flashcards, or summary" }, 400);
+    }
+  } catch (err) {
+    console.error(`[generate] ${type} failed:`, (err as Error).message);
+    return c.json({ error: `Generation failed: ${(err as Error).message}` }, 500);
   }
 
   const existing = doc.studyContent || { quiz: [], flashcards: [], summary: null };

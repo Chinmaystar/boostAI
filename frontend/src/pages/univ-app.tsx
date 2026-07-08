@@ -5,7 +5,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import {
   Plus, Upload,
   ArrowLeft, FileText, BookOpen,
-  Layers, X, FolderPlus, LogOut, Loader2, Trash2
+  Layers, X, FolderPlus, LogOut, Loader2, Trash2, ChevronDown
 } from "lucide-react";
 import logo from "../assets/logo.avif";
 import { useAuth } from "../hooks/useAuth";
@@ -768,8 +768,8 @@ export default function UnivAppPage() {
               placeholder="e.g. Calculus II"
             />
             <div className="flex justify-center gap-3 mt-4">
-              <button onClick={() => setModuleInputOpen(false)} className="px-4 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">Cancel</button>
-              <button onClick={submitModule} className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">Create</button>
+              <button onClick={() => setModuleInputOpen(false)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Cancel</button>
+              <button onClick={submitModule} style={{ backgroundColor: "#eff6ff", color: "#2563eb", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Create</button>
             </div>
           </div>
         </div>
@@ -788,16 +788,17 @@ export default function UnivAppPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Toolbar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2 min-w-0">
             {/* Module button — opens sidebar */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm hover:bg-gray-100 active:bg-gray-200 transition-colors text-sm cursor-pointer"
+              className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm hover:bg-gray-100 active:bg-gray-200 transition-colors text-sm cursor-pointer"
             >
               <img src={logo} alt="BoostAI" className="w-5 h-5 object-contain rounded shrink-0" />
-              <span className="font-semibold text-gray-800 max-w-[150px] truncate">
-                {activeModule?.name || "Workspace"}
+              <span className="font-semibold text-gray-800 max-w-[180px] truncate">
+                {activeModule?.name ? `Module: ${activeModule.name}` : "Select Module"}
               </span>
+              <ChevronDown size={14} className="text-gray-400 shrink-0" />
             </button>
 
             <input ref={uploadRef} type="file" accept=".pdf,application/pdf" className="hidden"
