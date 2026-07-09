@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Plus, Upload,
   ArrowLeft, FileText, BookOpen,
@@ -623,8 +624,15 @@ export default function UnivAppPage() {
   return (
     <div className="flex h-screen bg-[#F3F8FB] overflow-hidden font-sans relative">
       {/* ─── Sidebar ─── */}
-      {sidebarOpen && (
-        <div className="absolute left-0 top-0 bottom-0 w-[320px] bg-white shadow-xl z-50 flex flex-col border-r border-gray-200">
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ x: -320 }}
+            animate={{ x: 0 }}
+            exit={{ x: -320 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="absolute left-0 top-0 bottom-0 w-[320px] bg-white shadow-xl z-50 flex flex-col border-r border-gray-200"
+          >
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
             <h2 className="font-bold text-lg text-gray-900">Modules</h2>
             <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-gray-100 rounded-md text-gray-500">
@@ -749,40 +757,61 @@ export default function UnivAppPage() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-      {moduleInputOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setModuleInputOpen(false)}>
-          <div
-            className="bg-white rounded-2xl shadow-xl p-5 w-80 border border-gray-200"
-            onClick={e => e.stopPropagation()}
+      <AnimatePresence>
+        {moduleInputOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+            onClick={() => setModuleInputOpen(false)}
           >
-            <p className="text-sm font-semibold text-gray-800 mb-3">Module name</p>
-            <input
-              autoFocus
-              value={moduleInput}
-              onChange={e => setModuleInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") submitModule(); if (e.key === "Escape") setModuleInputOpen(false); }}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-              placeholder="e.g. Calculus II"
-            />
-            <div className="flex justify-center gap-3 mt-4">
-              <button onClick={() => setModuleInputOpen(false)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Cancel</button>
-              <button onClick={submitModule} style={{ backgroundColor: "#eff6ff", color: "#2563eb", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Create</button>
-            </div>
-          </div>
-        </div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-xl p-5 w-80 border border-gray-200"
+              onClick={e => e.stopPropagation()}
+            >
+              <p className="text-sm font-semibold text-gray-800 mb-3">Module name</p>
+              <input
+                autoFocus
+                value={moduleInput}
+                onChange={e => setModuleInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") submitModule(); if (e.key === "Escape") setModuleInputOpen(false); }}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                placeholder="e.g. Calculus II"
+              />
+              <div className="flex justify-center gap-3 mt-4">
+                <button onClick={() => setModuleInputOpen(false)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Cancel</button>
+                <button onClick={submitModule} style={{ backgroundColor: "#eff6ff", color: "#2563eb", padding: "8px 20px", fontSize: "14px", fontWeight: 600, borderRadius: "9999px", border: "none", cursor: "pointer" }}>Create</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-2.5 bg-green-500 text-white rounded-full shadow-lg text-sm font-medium">
-          <span>{toast.message}</span>
-          <button onClick={() => setToast(null)} className="p-0.5 hover:bg-white/20 rounded-full">
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-2.5 bg-green-500 text-white rounded-full shadow-lg text-sm font-medium"
+          >
+            <span>{toast.message}</span>
+            <button onClick={() => setToast(null)} className="p-0.5 hover:bg-white/20 rounded-full">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Left Pane ─── */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -904,7 +933,14 @@ export default function UnivAppPage() {
       {/* ─── Right Panel ─── */}
       <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col overflow-hidden">
         {rightMode === "tiles" ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+          <motion.div
+            key="tiles"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex flex-col items-center justify-center gap-4 p-8"
+          >
             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Study Tools</p>
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">for this pdf only</div>
             <button
@@ -943,7 +979,7 @@ export default function UnivAppPage() {
                 <p className="text-sm text-gray-500">Key points overview</p>
               </div>
             </button>
-          </div>
+          </motion.div>
         ) : (
           <div className="flex-1 flex flex-col min-h-0">
             <div className="flex items-center gap-2 p-4 border-b border-gray-100">
@@ -955,24 +991,38 @@ export default function UnivAppPage() {
               </span>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              {rightMode === "quiz" && <QuizPanel
-                items={activeDocObj ? studyContent[activeDocObj.name]?.quiz || null : null}
-                loading={generatingType === "quiz"}
-                onGenerate={() => ensureStudyContent("quiz")}
-              />}
-              {rightMode === "flashcards" && <FlashcardsPanel
-                items={activeDocObj ? studyContent[activeDocObj.name]?.flashcards || null : null}
-                loading={generatingType === "flashcards"}
-                onGenerate={() => ensureStudyContent("flashcards")}
-                idx={flashcardIdx}
-                setIdx={setFlashcardIdx}
-              />}
-              {rightMode === "summary" && <SummaryPanel
-                data={activeDocObj ? studyContent[activeDocObj.name]?.summary || null : null}
-                pages={activeDocObj?.pages || null}
-                loading={generatingType === "summary"}
-                onGenerate={() => ensureStudyContent("summary")}
-              />}
+              <AnimatePresence mode="wait">
+                {rightMode === "quiz" && (
+                  <motion.div key="quiz" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.15 }}>
+                    <QuizPanel
+                      items={activeDocObj ? studyContent[activeDocObj.name]?.quiz || null : null}
+                      loading={generatingType === "quiz"}
+                      onGenerate={() => ensureStudyContent("quiz")}
+                    />
+                  </motion.div>
+                )}
+                {rightMode === "flashcards" && (
+                  <motion.div key="flashcards" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.15 }}>
+                    <FlashcardsPanel
+                      items={activeDocObj ? studyContent[activeDocObj.name]?.flashcards || null : null}
+                      loading={generatingType === "flashcards"}
+                      onGenerate={() => ensureStudyContent("flashcards")}
+                      idx={flashcardIdx}
+                      setIdx={setFlashcardIdx}
+                    />
+                  </motion.div>
+                )}
+                {rightMode === "summary" && (
+                  <motion.div key="summary" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.15 }}>
+                    <SummaryPanel
+                      data={activeDocObj ? studyContent[activeDocObj.name]?.summary || null : null}
+                      pages={activeDocObj?.pages || null}
+                      loading={generatingType === "summary"}
+                      onGenerate={() => ensureStudyContent("summary")}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}
@@ -1025,11 +1075,19 @@ function QuizPanel({ items, loading, onGenerate }: {
           >
             {revealed[q.questionNumber] ? "Hide answer" : "Show answer"}
           </button>
-          {revealed[q.questionNumber] && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{q.answer}</p>
-            </div>
-          )}
+          <AnimatePresence>
+            {revealed[q.questionNumber] && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="mt-3 pt-3 border-t border-gray-100"
+              >
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{q.answer}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       ))}
     </div>
