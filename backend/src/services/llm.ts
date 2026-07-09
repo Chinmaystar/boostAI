@@ -107,9 +107,10 @@ export async function generateQuestions(
   const chunks = chunkPages(pages);
   const all: QAItem[] = [];
 
-  for (const chunk of chunks) {
-    const pageText = buildPageText(chunk);
-    const systemPrompt = `You are an expert educator. Given textbook page text, generate questions and answers that test understanding of key concepts.
+  for (const [i, chunk] of chunks.entries()) {
+    try {
+      const pageText = buildPageText(chunk);
+      const systemPrompt = `You are an expert educator. Given textbook page text, generate questions and answers that test understanding of key concepts.
 
 Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 {
@@ -121,23 +122,28 @@ Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 
 Generate 3-6 questions for this section.`;
 
-    const raw = await chatComplete([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: pageText },
-    ]);
+      const raw = await chatComplete([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: pageText },
+      ]);
 
-    const parsed = cleanAndParse(raw);
-    if (Array.isArray(parsed)) {
-      for (const item of parsed) {
-        all.push({
-          questionNumber: all.length + 1,
-          question: item.question || "",
-          answer: item.answer || "",
-          type: item.type || "short-answer",
-        });
+      const parsed = cleanAndParse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          all.push({
+            questionNumber: all.length + 1,
+            question: item.question || "",
+            answer: item.answer || "",
+            type: item.type || "short-answer",
+          });
+        }
       }
+    } catch (err) {
+      console.error(`[llm] quiz chunk ${i + 1}/${chunks.length} failed:`, (err as Error).message);
     }
   }
+
+  if (all.length === 0) throw new Error("Failed to generate any questions");
 
   return all;
 }
@@ -150,9 +156,10 @@ export async function generateFlashcards(
   const chunks = chunkPages(pages);
   const all: Flashcard[] = [];
 
-  for (const chunk of chunks) {
-    const pageText = buildPageText(chunk);
-    const systemPrompt = `You are an expert educator. Given textbook page text, create flashcards with key concepts on the front and clear explanations on the back.
+  for (const [i, chunk] of chunks.entries()) {
+    try {
+      const pageText = buildPageText(chunk);
+      const systemPrompt = `You are an expert educator. Given textbook page text, create flashcards with key concepts on the front and clear explanations on the back.
 
 Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 {
@@ -162,20 +169,25 @@ Return ONLY a valid JSON array (no markdown, no code fences). Each object:
 
 Generate 3-5 flashcards for this section.`;
 
-    const raw = await chatComplete([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: pageText },
-    ]);
+      const raw = await chatComplete([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: pageText },
+      ]);
 
-    const parsed = cleanAndParse(raw);
-    if (Array.isArray(parsed)) {
-      for (const item of parsed) {
-        if (item.front && item.back) {
-          all.push({ front: item.front, back: item.back });
+      const parsed = cleanAndParse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item.front && item.back) {
+            all.push({ front: item.front, back: item.back });
+          }
         }
       }
+    } catch (err) {
+      console.error(`[llm] flashcard chunk ${i + 1}/${chunks.length} failed:`, (err as Error).message);
     }
   }
+
+  if (all.length === 0) throw new Error("Failed to generate any flashcards");
 
   return all;
 }
@@ -188,19 +200,37 @@ export async function generateSummary(
   const chunks = chunkPages(pages);
 
   if (chunks.length === 1) {
-    return generateSingleSummary(chunks[0]);
+    try {
+      return await generateSingleSummary(chunks[0]);
+    } catch (err) {
+      console.error(`[llm] summary generation failed:`, (err as Error).message);
+      return { summary: "", keyPoints: [] };
+    }
   }
 
   const partials: SummaryResult[] = [];
-  for (const chunk of chunks) {
-    partials.push(await generateSingleSummary(chunk));
+  for (const [i, chunk] of chunks.entries()) {
+    try {
+      partials.push(await generateSingleSummary(chunk));
+    } catch (err) {
+      console.error(`[llm] summary chunk ${i + 1}/${chunks.length} failed:`, (err as Error).message);
+    }
   }
 
-  const combinedText = partials
-    .map((p, i) => `--- Part ${i + 1} ---\nSummary: ${p.summary}\nKey points:\n${p.keyPoints.map(k => `- ${k}`).join("\n")}`)
-    .join("\n\n");
+  if (partials.length === 0) {
+    return { summary: "", keyPoints: [] };
+  }
 
-  const mergePrompt = `You are an expert educator. Below are summaries of different parts of a textbook document. Combine them into one coherent final summary.
+  if (partials.length === 1) {
+    return partials[0];
+  }
+
+  try {
+    const combinedText = partials
+      .map((p, i) => `--- Part ${i + 1} ---\nSummary: ${p.summary}\nKey points:\n${p.keyPoints.map(k => `- ${k}`).join("\n")}`)
+      .join("\n\n");
+
+    const mergePrompt = `You are an expert educator. Below are summaries of different parts of a textbook document. Combine them into one coherent final summary.
 
 Return ONLY a valid JSON object (no markdown, no code fences):
 {
@@ -208,18 +238,25 @@ Return ONLY a valid JSON object (no markdown, no code fences):
   "keyPoints": string[] (5-10 consolidated bullet-point key takeaways)
 }`;
 
-  const raw = await chatComplete([
-    { role: "system", content: mergePrompt },
-    { role: "user", content: combinedText },
-  ]);
+    const raw = await chatComplete([
+      { role: "system", content: mergePrompt },
+      { role: "user", content: combinedText },
+    ]);
 
-  const parsed = cleanAndParse(raw);
-  return {
-    summary: parsed.summary || partials.map(p => p.summary).join("\n\n"),
-    keyPoints: Array.isArray(parsed.keyPoints)
-      ? parsed.keyPoints
-      : partials.flatMap(p => p.keyPoints),
-  };
+    const parsed = cleanAndParse(raw);
+    return {
+      summary: parsed.summary || partials.map(p => p.summary).join("\n\n"),
+      keyPoints: Array.isArray(parsed.keyPoints)
+        ? parsed.keyPoints
+        : partials.flatMap(p => p.keyPoints),
+    };
+  } catch (err) {
+    console.error(`[llm] summary merge failed:`, (err as Error).message);
+    return {
+      summary: partials.map(p => p.summary).join("\n\n"),
+      keyPoints: partials.flatMap(p => p.keyPoints),
+    };
+  }
 }
 
 async function generateSingleSummary(

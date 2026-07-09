@@ -184,6 +184,9 @@ documents.post("/:id/generate", authGuard, async (c) => {
     }
   } catch (err) {
     console.error(`[generate] ${type} failed:`, (err as Error).message);
+    /* clear stale studyContent entry so next attempt doesn't hit cached empty array */
+    const updated = { ...(doc.studyContent as any || {}), [type]: null };
+    await db.update(documentsTable).set({ studyContent: updated }).where(eq(documentsTable.id, id)).execute().catch(() => {});
     return c.json({ error: `Generation failed: ${(err as Error).message}` }, 500);
   }
 
@@ -214,7 +217,7 @@ documents.get("/:id/study-content", authGuard, async (c) => {
 
   if (type) {
     const content = (doc.studyContent as any)?.[type];
-    if (!content) return c.json({ error: "Not generated yet" }, 404);
+    if (!content || (Array.isArray(content) && content.length === 0)) return c.json({ error: "Not generated yet" }, 404);
     return c.json({ type, content });
   }
 

@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Plus, Upload,
   ArrowLeft, FileText, BookOpen,
-  Layers, X, FolderPlus, LogOut, Loader2, Trash2, ChevronDown
+  Layers, X, FolderPlus, LogOut, Loader2, Trash2, ChevronDown, RefreshCw
 } from "lucide-react";
 import logo from "../assets/logo.avif";
 import { useAuth } from "../hooks/useAuth";
@@ -79,7 +79,12 @@ export default function UnivAppPage() {
   /* modules */
   const [modules, setModules] = useState<AppModule[]>([]);
   const [moduleDocs, setModuleDocs] = useState<Record<string, DocInfo[]>>({});
-  const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  const [activeModuleId, setActiveModuleId_] = useState<string | null>(null);
+  const setActiveModId = useCallback((id: string | null) => {
+    setActiveModuleId_(id);
+    if (id) localStorage.setItem("activeModuleId", id);
+    else localStorage.removeItem("activeModuleId");
+  }, []);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -108,10 +113,14 @@ export default function UnivAppPage() {
   /* toast */
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
+  /* pdf loading */
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   /* right panel */
   const [rightMode, setRightMode] = useState<RightMode>("tiles");
   const [studyContent, setStudyContent] = useState<Record<string, StudyContent>>({});
   const [generatingType, setGeneratingType] = useState<string | null>(null);
+  const [studyError, setStudyError] = useState<Record<string, string | null>>({});
   const [flashcardIdx, setFlashcardIdx] = useState(0);
 
   /* module name input */
@@ -217,6 +226,12 @@ export default function UnivAppPage() {
           }));
         }
         setModuleDocs(docsMap);
+        const savedId = localStorage.getItem("activeModuleId");
+        if (savedId && mods.some(m => String(m.id) === savedId)) {
+          setActiveModId(savedId);
+        } else if (mods.length > 0) {
+          setActiveModId(String(mods[0].id));
+        }
       })
       .catch(console.error);
 
@@ -278,7 +293,7 @@ export default function UnivAppPage() {
       const newMod: AppModule = { id: String(data.id), serverId: data.id, name: data.name };
       setModules(prev => [...prev, newMod]);
       setModuleDocs(prev => ({ ...prev, [newMod.id]: [] }));
-      setActiveModuleId(newMod.id);
+      setActiveModId(newMod.id);
     } catch (err) {
       alert("Failed to create module: " + (err as Error).message);
     }
@@ -299,7 +314,7 @@ export default function UnivAppPage() {
     setModules(prev => prev.filter(m => m.id !== id));
     setModuleDocs(prev => { const { [id]: _, ...rest } = prev; return rest; });
     if (activeModuleId === id) {
-      setActiveModuleId(null);
+      setActiveModId(null);
       setActiveDocId(null);
       setPdfFile(null);
     }
@@ -373,7 +388,7 @@ export default function UnivAppPage() {
                     d.name === docName ? { ...d, id: data.id, loading: false } : d
                   ),
                 }));
-                setActiveModuleId(modId);
+                setActiveModId(modId);
                 setActiveDocId(docName);
                 setPdfFile(fileUrl);
                 setPageSizes({});
@@ -429,12 +444,13 @@ export default function UnivAppPage() {
     const docs = (modId === "__server__" ? serverDocs : moduleDocs[modId]) || [];
     const doc = docs.find(d => d.name === docName);
     if (!doc) return;
-    setActiveModuleId(modId);
+    setActiveModId(modId);
     setActiveDocId(docName);
 
     if (doc.localFile) {
       setPdfFile(doc.localFile);
     } else if (doc.id != null) {
+      setPdfLoading(true);
       const token = localStorage.getItem("token");
       try {
         const res = await fetch(`http://localhost:3001/api/documents/${doc.id}/file`, {
@@ -445,6 +461,7 @@ export default function UnivAppPage() {
           setPdfFile(URL.createObjectURL(blob));
         }
       } catch { /* fall through */ }
+      setPdfLoading(false);
     }
 
     setPageSizes({});
@@ -455,38 +472,50 @@ export default function UnivAppPage() {
   };
 
   /* ─── Study content ─── */
-  const ensureStudyContent = async (type: "quiz" | "flashcards" | "summary") => {
+  const ensureStudyContent = async (type: "quiz" | "flashcards" | "summary", force?: boolean) => {
     if (!activeDocObj || activeDocObj.id == null) return;
     const docId = activeDocObj.id;
     const docName = activeDocObj.name;
 
-    if (studyContent[docName]?.[type] && (type !== "summary" || studyContent[docName].summary)) {
-      return;
+    if (!force && studyContent[docName]?.[type] && (type !== "summary" || studyContent[docName].summary)) {
+      const existing = studyContent[docName][type];
+      if (Array.isArray(existing) && existing.length === 0) {
+        /* empty array from a previous failed run — regenerate */
+      } else {
+        return;
+      }
     }
 
     setGeneratingType(type);
+    setStudyError(prev => ({ ...prev, [type]: null }));
     const token = localStorage.getItem("token");
     try {
-      let res = await fetch(
-        `http://localhost:3001/api/documents/${docId}/study-content?type=${type}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setStudyContent(prev => ({
-          ...prev,
-          [docName]: { ...prev[docName], [type]: data.content },
-        }));
-        setGeneratingType(null);
-        return;
+      if (!force) {
+        let res = await fetch(
+          `http://localhost:3001/api/documents/${docId}/study-content?type=${type}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.content) && data.content.length === 0) {
+            /* stale empty array in DB — fall through to generate */
+          } else {
+            setStudyContent(prev => ({
+              ...prev,
+              [docName]: { ...prev[docName], [type]: data.content },
+            }));
+            setGeneratingType(null);
+            return;
+          }
+        }
       }
 
       /* Not cached — generate */
-      res = await fetch(
+      const res = await fetch(
         `http://localhost:3001/api/documents/${docId}/generate?type=${type}`,
         { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
-      if (!res.ok) throw new Error("Generation failed");
+      if (!res.ok) throw new Error(`Generation failed (${res.status})`);
       const data = await res.json();
       setStudyContent(prev => ({
         ...prev,
@@ -494,6 +523,7 @@ export default function UnivAppPage() {
       }));
     } catch (err) {
       console.error("Study content error:", err);
+      setStudyError(prev => ({ ...prev, [type]: (err as Error).message }));
     } finally {
       setGeneratingType(null);
     }
@@ -642,7 +672,7 @@ export default function UnivAppPage() {
           <div className="p-3 border-b border-gray-100">
             <button
               onClick={createModule}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors border-0"
             >
               <FolderPlus size={16} /> New Module
             </button>
@@ -658,7 +688,7 @@ export default function UnivAppPage() {
                 <div key={mod.id}>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setActiveModuleId(isActive ? null : mod.id)}
+                      onClick={() => setActiveModId(isActive ? null : mod.id)}
                       className={`flex-1 flex items-center gap-2 px-3 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
                         isActive ? "bg-blue-50 text-blue-700" : "text-gray-800 hover:bg-gray-50"
                       }`}
@@ -707,7 +737,7 @@ export default function UnivAppPage() {
                       ))}
                       <button
                         onClick={() => {
-                          setActiveModuleId(mod.id);
+                          setActiveModId(mod.id);
                           sidebarUploadRef.current?.click();
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -825,7 +855,7 @@ export default function UnivAppPage() {
             >
               <img src={logo} alt="BoostAI" className="w-5 h-5 object-contain rounded shrink-0" />
               <span className="font-semibold text-gray-800 max-w-[180px] truncate">
-                {activeModule?.name ? `Module: ${activeModule.name}` : "Select Module"}
+                {activeModule?.name ? `Module - ${activeModule.name}` : "Select Module"}
               </span>
               <ChevronDown size={14} className="text-gray-400 shrink-0" />
             </button>
@@ -865,7 +895,12 @@ export default function UnivAppPage() {
         {/* PDF Viewer */}
         <div className="flex-1 overflow-auto bg-sky-50">
           <div className="flex flex-col items-center p-4 pb-24 min-h-full">
-            {pdfFile ? (
+            {pdfLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-400">
+                <Loader2 size={28} className="animate-spin" />
+                <span className="text-sm">Loading PDF...</span>
+              </div>
+            ) : pdfFile ? (
               <div ref={pageContainerRef} className="relative" style={{ width: Math.min(basePageWidth + 40, 900) }}>
                 <Document file={pdfFile} onLoadSuccess={onDocumentLoad}>
                   <div className="flex flex-col items-center gap-6">
@@ -911,6 +946,65 @@ export default function UnivAppPage() {
                   </div>
                 </Document>
               </div>
+            ) : modules.length > 0 && !activeModuleId ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-4">
+                <BookOpen size={48} className="text-gray-300" />
+                <p className="text-sm font-medium text-gray-500">Select a Module</p>
+                <div className="flex flex-col gap-2 w-64">
+                  {modules.map(mod => (
+                    <button
+                      key={mod.id}
+                      onClick={() => setActiveModId(mod.id)}
+                      className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-800 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
+                    >
+                      <BookOpen size={16} className="text-gray-400 shrink-0" />
+                      <span className="truncate">{mod.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={createModule}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-dashed border-blue-200 transition-colors"
+                >
+                  <Plus size={14} /> New Module
+                </button>
+              </div>
+            ) : activeModuleId ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-4">
+                <FileText size={48} className="text-gray-300" />
+                <p className="text-sm font-medium text-gray-500">{activeModule?.name || "Module"}</p>
+                {activeModuleDocs.length === 0 ? (
+                  <>
+                    <p className="text-xs text-gray-400">No PDFs in this module</p>
+                    <button
+                      onClick={() => { uploadRef.current?.click(); }}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors border-0"
+                    >
+                      <Upload size={14} /> Upload PDF
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2 w-72">
+                    {activeModuleDocs.map(d => (
+                      <button
+                        key={d.name}
+                        onClick={() => openDoc(activeModuleId, d.name)}
+                        className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-800 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors shadow-sm"
+                      >
+                        <FileText size={16} className="text-gray-400 shrink-0" />
+                        <span className="truncate">{d.name}</span>
+                        {d.loading && <Loader2 size={12} className="animate-spin text-blue-500 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => uploadRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-dashed border-blue-200 transition-colors"
+                >
+                  <Plus size={12} /> Upload another PDF
+                </button>
+              </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
                 <FileText size={48} className="text-gray-300" />
@@ -920,7 +1014,7 @@ export default function UnivAppPage() {
                     if (activeModuleId) uploadRef.current?.click();
                     else createModule();
                   }}
-                  className="px-4 py-2 bg-blue-600 rounded-xl text-sm font-medium hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors border-0"
                 >
                   {activeModuleId ? "Upload PDF" : "Create Module"}
                 </button>
@@ -944,8 +1038,12 @@ export default function UnivAppPage() {
             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Study Tools</p>
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">for this pdf only</div>
             <button
-              onClick={() => { setRightMode("quiz"); setFlashcardIdx(0); ensureStudyContent("quiz"); }}
-              className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-200 hover:shadow-md transition-shadow group"
+              onClick={() => { if (!activeDocObj) return; setRightMode("quiz"); setFlashcardIdx(0); ensureStudyContent("quiz"); }}
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-shadow group ${
+                !activeDocObj
+                  ? "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                  : "bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 hover:shadow-md"
+              }`}
             >
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Layers size={24} className="text-purple-600" />
@@ -956,8 +1054,12 @@ export default function UnivAppPage() {
               </div>
             </button>
             <button
-              onClick={() => { setRightMode("flashcards"); setFlashcardIdx(0); ensureStudyContent("flashcards"); }}
-              className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl border border-green-200 hover:shadow-md transition-shadow group"
+              onClick={() => { if (!activeDocObj) return; setRightMode("flashcards"); setFlashcardIdx(0); ensureStudyContent("flashcards"); }}
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-shadow group ${
+                !activeDocObj
+                  ? "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                  : "bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 hover:shadow-md"
+              }`}
             >
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <Layers size={24} className="text-green-600" />
@@ -968,8 +1070,12 @@ export default function UnivAppPage() {
               </div>
             </button>
             <button
-              onClick={() => { setRightMode("summary"); ensureStudyContent("summary"); }}
-              className="w-full flex items-center gap-4 p-5 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border border-blue-200 hover:shadow-md transition-shadow group"
+              onClick={() => { if (!activeDocObj) return; setRightMode("summary"); ensureStudyContent("summary"); }}
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-shadow group ${
+                !activeDocObj
+                  ? "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                  : "bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 hover:shadow-md"
+              }`}
             >
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <FileText size={24} className="text-blue-600" />
@@ -982,13 +1088,39 @@ export default function UnivAppPage() {
           </motion.div>
         ) : (
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex items-center gap-2 p-4 border-b border-gray-100">
-              <button onClick={() => setRightMode("tiles")} className="p-1 hover:bg-gray-100 rounded-md text-gray-500">
+            <div className={`flex items-center gap-2 p-4 border-b ${
+              rightMode === "quiz" ? "bg-purple-50/60 border-purple-100" :
+              rightMode === "flashcards" ? "bg-green-50/60 border-green-100" :
+              "bg-blue-50/60 border-blue-100"
+            }`}>
+              <button onClick={() => setRightMode("tiles")} className={`p-1 hover:bg-black/5 rounded-md ${
+                rightMode === "quiz" ? "text-purple-500" :
+                rightMode === "flashcards" ? "text-green-500" :
+                "text-blue-500"
+              }`}>
                 <ArrowLeft size={18} />
               </button>
-              <span className="font-semibold text-gray-800 capitalize">
+              <span className={`font-semibold capitalize flex-1 ${
+                rightMode === "quiz" ? "text-purple-800" :
+                rightMode === "flashcards" ? "text-green-800" :
+                "text-blue-800"
+              }`}>
                 {rightMode === "quiz" ? "Quiz" : rightMode === "flashcards" ? "Flashcards" : "Summary"}
               </span>
+              <button
+                onClick={() => ensureStudyContent(rightMode as "quiz" | "flashcards" | "summary", true)}
+                disabled={generatingType === rightMode}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  rightMode === "quiz"
+                    ? "text-purple-700 border-purple-200 hover:bg-purple-100 disabled:opacity-40"
+                    : rightMode === "flashcards"
+                    ? "text-green-700 border-green-200 hover:bg-green-100 disabled:opacity-40"
+                    : "text-blue-700 border-blue-200 hover:bg-blue-100 disabled:opacity-40"
+                }`}
+              >
+                <RefreshCw size={13} className={generatingType === rightMode ? "animate-spin" : ""} />
+                {generatingType === rightMode ? "Generating..." : "Regenerate"}
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
               <AnimatePresence mode="wait">
@@ -997,6 +1129,7 @@ export default function UnivAppPage() {
                     <QuizPanel
                       items={activeDocObj ? studyContent[activeDocObj.name]?.quiz || null : null}
                       loading={generatingType === "quiz"}
+                      error={studyError.quiz || null}
                       onGenerate={() => ensureStudyContent("quiz")}
                     />
                   </motion.div>
@@ -1006,6 +1139,7 @@ export default function UnivAppPage() {
                     <FlashcardsPanel
                       items={activeDocObj ? studyContent[activeDocObj.name]?.flashcards || null : null}
                       loading={generatingType === "flashcards"}
+                      error={studyError.flashcards || null}
                       onGenerate={() => ensureStudyContent("flashcards")}
                       idx={flashcardIdx}
                       setIdx={setFlashcardIdx}
@@ -1018,6 +1152,7 @@ export default function UnivAppPage() {
                       data={activeDocObj ? studyContent[activeDocObj.name]?.summary || null : null}
                       pages={activeDocObj?.pages || null}
                       loading={generatingType === "summary"}
+                      error={studyError.summary || null}
                       onGenerate={() => ensureStudyContent("summary")}
                     />
                   </motion.div>
@@ -1033,9 +1168,10 @@ export default function UnivAppPage() {
 
 /* ─── Sub-components ─── */
 
-function QuizPanel({ items, loading, onGenerate }: {
+function QuizPanel({ items, loading, error, onGenerate }: {
   items: QAItem[] | null;
   loading: boolean;
+  error: string | null;
   onGenerate: () => void;
 }) {
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
@@ -1049,11 +1185,22 @@ function QuizPanel({ items, loading, onGenerate }: {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16">
+        <p className="text-sm text-red-500 text-center max-w-[280px]">{error}</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition-colors border-0">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (!items || items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
         <p className="text-sm">No questions yet</p>
-        <button onClick={onGenerate} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors">
+        <button onClick={onGenerate} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition-colors border-0">
           Generate Quiz
         </button>
       </div>
@@ -1094,9 +1241,10 @@ function QuizPanel({ items, loading, onGenerate }: {
   );
 }
 
-function FlashcardsPanel({ items, loading, onGenerate, idx, setIdx }: {
+function FlashcardsPanel({ items, loading, error, onGenerate, idx, setIdx }: {
   items: Flashcard[] | null;
   loading: boolean;
+  error: string | null;
   onGenerate: () => void;
   idx: number;
   setIdx: (v: number) => void;
@@ -1112,11 +1260,22 @@ function FlashcardsPanel({ items, loading, onGenerate, idx, setIdx }: {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16">
+        <p className="text-sm text-red-500 text-center max-w-[280px]">{error}</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors border-0">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (!items || items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
         <p className="text-sm">No flashcards yet</p>
-        <button onClick={onGenerate} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors">
+        <button onClick={onGenerate} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors border-0">
           Generate Flashcards
         </button>
       </div>
@@ -1164,10 +1323,11 @@ function FlashcardsPanel({ items, loading, onGenerate, idx, setIdx }: {
   );
 }
 
-function SummaryPanel({ data, pages, loading, onGenerate }: {
+function SummaryPanel({ data, pages, loading, error, onGenerate }: {
   data: SummaryResult | null;
   pages: { page: number; text: string }[] | null;
   loading: boolean;
+  error: string | null;
   onGenerate: () => void;
 }) {
   if (loading) {
@@ -1179,11 +1339,22 @@ function SummaryPanel({ data, pages, loading, onGenerate }: {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16">
+        <p className="text-sm text-red-500 text-center max-w-[280px]">{error}</p>
+        <button onClick={onGenerate} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors border-0">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (!data && (!pages || pages.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-gray-400">
         <p className="text-sm">No content to summarize</p>
-        <button onClick={onGenerate} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+        <button onClick={onGenerate} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors border-0">
           Generate Summary
         </button>
       </div>

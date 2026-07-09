@@ -63,21 +63,25 @@ boostAI/
 
 ### Workspace (`univ-app.tsx`)
 - **Layout**: Sidebar (left) | PDF viewer (center) | Right panel (study tools)
-- **Modules**: Persisted on server. `AppModule { id, serverId, name }`. On mount, fetched from `GET /api/modules`. Created via `POST /api/modules`, deleted via `DELETE /api/modules/:id` (cascade deletes all documents).
-- **Documents**: `DocInfo { id, name, loading, pages, localFile? }`. Uploaded via SSE streaming to `POST /api/documents/upload` with `moduleId`. Loading spinner in sidebar during processing. On completion, auto-opens (always, not gated on `activeDocId` being null). Uses `URL.createObjectURL(file)` for immediate rendering.
+- **Modules**: Persisted on server. `AppModule { id, serverId, name }`. On mount, fetched from `GET /api/modules`. `activeModuleId` persisted to `localStorage` — restored on mount, auto-selects first module if saved ID no longer exists.
+- **Documents**: `DocInfo { id, name, loading, pages, localFile? }`. Uploaded via SSE streaming to `POST /api/documents/upload` with `moduleId`. Loading spinner in sidebar during processing. On completion, auto-opens. Uses `URL.createObjectURL(file)` for immediate rendering.
+- **PDF Loading**: `pdfLoading` state shows spinner while PDF blob is being fetched from server. Center pane shows doc list from active module (with loading indicators per doc), or "No PDFs" message with upload button.
 - **SSE stream reading**: The `while` loop reads chunks with `reader.read()`. CRITICAL: `value` is processed into `buf` BEFORE checking `streamDone`, because the last chunk may carry the final data with `done: true`. If you break before appending `value`, the done event is silently lost.
 - **Server docs (orphans)**: Docs without a module. Fetched from `GET /api/documents/list` on mount. Shown in a "Documents" section.
 - **Delete doc**: Calls `DELETE /api/documents/:id` on server + removes from state.
 - **Long filenames**: Scrollable horizontally without visible scrollbar (`overflow-x-auto whitespace-nowrap scrollbar-none`).
 - **PDF rendering**: `react-pdf` with continuous scroll. PDF fetched from server as blob URL or from local File object.
-- **Study content**: Q&A, flashcards, and summaries are generated on-demand via DeepSeek LLM API (OpenAI-compatible chat completions). Page text from OCR is fed to the LLM with structured JSON prompts. Results cached in DB `study_content` JSONB column.
-- **Right panel**: Quiz (scrollable Q&A list with reveal-answer), Flashcards (single-card flip view with prev/next), Summary (LLM-generated summary + key points; falls back to raw page text).
-- **PDF storage**: Files uploaded to Firebase Cloud Storage (configurable via env vars). Falls back to local `uploads/` directory if Firebase not configured.
-- **SSE stream reading**: The `while` loop reads chunks with `reader.read()`. CRITICAL: `value` is processed into `buf` BEFORE checking `streamDone`, because the last chunk may carry the final data with `done: true`. If you break before appending `value`, the done event is silently lost.
-- **Right panel**: Quiz / Flashcards / Summary tiles (content coming soon)
+- **Study content**: Q&A, flashcards, and summaries generated on-demand via OpenRouter (DeepSeek chat) API. Page text from OCR is fed to the LLM in **chunks of 2 pages**, results merged. Each chunk wrapped in try/catch — if all chunks fail, throws error so frontend can show Retry.
+- **Right panel**: Three modes — tiles (landing), quiz (scrollable Q&A with reveal-answer), flashcards (single-card flip with prev/next), summary (LLM-generated + key points). Each panel has a **tinted header** (purple/green/blue) with a **Regenerate button** (top-right, always visible, spinner while loading). `force` parameter on `ensureStudyContent` bypasses all caches (local state + DB) for fresh generation.
+- **Error handling**: `studyError` state per tool type. On generation failure, error message shown in red + Retry button. Stale empty arrays in DB are cleared on failure. `study-content` GET returns 404 for empty arrays.
+- **PDF storage**: Files uploaded to Supabase Storage (private bucket) with RLS policies. Downloads use signed URLs (302 redirect) with 1hr expiry; backend proxies as fallback.
+- **Study tool tiles**: Disabled (grayed out, `opacity-50`, `cursor-not-allowed`) when no PDF is loaded. Click does nothing.
+- **Module picker**: When `activeModuleId` is null but modules exist, center pane shows a clickable module list + "New Module" button.
+- **Animations**: `framer-motion` via `AnimatePresence` + `motion.div` — sidebar slide (spring), modal fade+scale (spring), toast slide-down (spring), right panel views cross-fade (150ms), quiz answer reveal fade.
+- **CSS note**: `button { background: none; }` was removed from `index.css` — use `border-0` + `bg-*` classes for button styling.
 
 ## Conventions
-- Tailwind v4 utility classes
+- Tailwind v4 utility classes (no inline styles except for modal buttons)
 - No comments in code (unless absolutely necessary)
 - `lucide-react` for icons
 - Types at top of file
