@@ -11,6 +11,13 @@ function getClient() {
   return supabase;
 }
 
+const FALLBACK_BUCKETS = ["documents", "pdfs"];
+
+function bucketsToTry(): string[] {
+  const primary = config.SUPABASE_STORAGE_BUCKET;
+  return Array.from(new Set([primary, ...FALLBACK_BUCKETS.filter(b => b !== primary)]));
+}
+
 function storagePath(userId: number, docId?: number): string {
   const prefix = `${userId}/`;
   if (docId) return `${prefix}${docId}.pdf`;
@@ -84,16 +91,20 @@ export async function getSignedUrl(
   const filePath = storagePath.slice("supabase://".length);
   const client = getClient();
 
-  const { data, error } = await client.storage
-    .from(config.SUPABASE_STORAGE_BUCKET)
-    .createSignedUrl(filePath, expiresIn);
+  for (const bucket of bucketsToTry()) {
+    const { data, error } = await client.storage
+      .from(bucket)
+      .createSignedUrl(filePath, expiresIn);
 
-  if (error || !data) {
-    console.warn(`[storage] Signed URL error: ${error?.message}`);
-    return null;
+    if (error || !data) {
+      console.warn(`[storage] Signed URL error in "${bucket}": ${error?.message}`);
+      continue;
+    }
+
+    return data.signedUrl;
   }
 
-  return data.signedUrl;
+  return null;
 }
 
 export async function getFileStream(
@@ -103,17 +114,21 @@ export async function getFileStream(
     const filePath = storagePath.slice("supabase://".length);
     const client = getClient();
 
-    const { data, error } = await client.storage
-      .from(config.SUPABASE_STORAGE_BUCKET)
-      .download(filePath);
+    for (const bucket of bucketsToTry()) {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .download(filePath);
 
-    if (error || !data) {
-      console.warn(`[storage] Supabase download failed: ${error?.message}`);
-      return { buffer: null };
+      if (error || !data) {
+        console.warn(`[storage] Supabase download failed in "${bucket}": ${error?.message}`);
+        continue;
+      }
+
+      const arrayBuf = await data.arrayBuffer();
+      return { buffer: Buffer.from(arrayBuf) };
     }
 
-    const arrayBuf = await data.arrayBuffer();
-    return { buffer: Buffer.from(arrayBuf) };
+    return { buffer: null };
   }
 
   const localPath = storagePath.startsWith("local://")
@@ -130,12 +145,13 @@ export async function deleteFile(storagePath: string): Promise<void> {
     const filePath = storagePath.slice("supabase://".length);
     const client = getClient();
 
-    const { error } = await client.storage
-      .from(config.SUPABASE_STORAGE_BUCKET)
-      .remove([filePath]);
+    for (const bucket of bucketsToTry()) {
+      const { error } = await client.storage
+        .from(bucket)
+        .remove([filePath]);
 
-    if (error) {
-      console.warn(`[storage] Supabase delete failed: ${error.message}`);
+      if (!error) return;
+      console.warn(`[storage] Supabase delete failed in "${bucket}": ${error.message}`);
     }
     return;
   }
